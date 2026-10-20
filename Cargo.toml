@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/openflip-core", "crates/openflip-app"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+repository = "https://github.com/kaiojuenemann/openflip"
+
+[workspace.dependencies]
+openflip-core = { path = "crates/openflip-core" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+directories = "6"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"

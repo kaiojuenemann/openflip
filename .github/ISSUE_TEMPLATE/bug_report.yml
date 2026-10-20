@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux (X11), Linux (Wayland)]
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: e.g. macOS 15.1, Windows 11 24H2, Fedora 41 / GNOME 47
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Screensaver, Screensaver preview, App (fullscreen), App (windowed)]
+  - type: input
+    id: version
+    attributes:
+      label: openflip version or commit
+  - type: textarea
+    id: config
+    attributes:
+      label: config.toml (optional)
+      render: toml

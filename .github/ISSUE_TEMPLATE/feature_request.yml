@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an idea for openflip
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Relevant platforms
+      options:
+        - label: macOS
+        - label: Windows
+        - label: Linux
