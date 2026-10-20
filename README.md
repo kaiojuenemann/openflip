@@ -5,8 +5,9 @@ screensaver and as a standalone fullscreen/windowed app. Inspired by the
 classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
-> **Status:** early development. The clock runs as an app (no flip
-> animation or screensaver integration yet) — see the [roadmap](docs/ROADMAP.md).
+> **Status:** early development. The clock runs as an app with the 3D flip
+> animation; settings overlay and screensaver integration are next — see the
+> [roadmap](docs/ROADMAP.md).
 
 ![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
@@ -48,7 +49,7 @@ installation has them.
 ## Usage
 
 ```
-openflip [--windowed] [--screenshot FILE [--size WxH]] [--time HH:MM[:SS]]
+openflip [--windowed] [--screenshot FILE [--size WxH] [--progress P]] [--time HH:MM[:SS]]
 ```
 
 | Key | Action |
@@ -58,6 +59,8 @@ openflip [--windowed] [--screenshot FILE [--size WxH]] [--time HH:MM[:SS]]
 
 `--screenshot` renders a single frame to a PNG without opening a window;
 `--time` freezes the clock at a given time, which is handy for screenshots.
+Add `--progress 0.4` to capture a flip in mid-air, from the previous minute
+(or second, with seconds shown) to `--time`.
 
 ## Configuration
 
