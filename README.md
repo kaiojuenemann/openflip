@@ -6,8 +6,8 @@ classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
 > **Status:** early development. The clock runs as an app with the 3D flip
-> animation; settings overlay and screensaver integration are next — see the
-> [roadmap](docs/ROADMAP.md).
+> animation and an in-app settings panel; screensaver integration is next —
+> see the [roadmap](docs/ROADMAP.md).
 
 ![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
@@ -49,13 +49,17 @@ installation has them.
 ## Usage
 
 ```
-openflip [--windowed] [--screenshot FILE [--size WxH] [--progress P]] [--time HH:MM[:SS]]
+openflip [--windowed | --settings] [--screenshot FILE [--size WxH] [--progress P]] [--time HH:MM[:SS]]
 ```
 
 | Key | Action |
 |---|---|
+| `S` | open / close the settings |
 | `F` / `F11` | toggle fullscreen |
-| `Esc` / `Q` | quit |
+| `Esc` / `Q` | quit (`Esc` closes the settings first) |
+
+`--settings` opens just the settings in a window and quits when they are
+closed; the screensaver "Options" buttons will use it.
 
 `--screenshot` renders a single frame to a PNG without opening a window;
 `--time` freezes the clock at a given time, which is handy for screenshots.
@@ -64,7 +68,14 @@ Add `--progress 0.4` to capture a flip in mid-air, from the previous minute
 
 ## Configuration
 
-Settings live in `config.toml` in your user config directory:
+Press `S` to change settings while the clock runs: arrow keys or the mouse
+select and change values, `Enter` on *Font* opens a file picker and `Del`
+returns to the built-in font. Changes apply immediately and are saved.
+
+![The settings panel](docs/images/settings.png)
+
+Settings live in `config.toml` in your user config directory and can also be
+edited by hand:
 
 | OS | Path |
 |---|---|

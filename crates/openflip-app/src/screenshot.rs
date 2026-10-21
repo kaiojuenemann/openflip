@@ -8,6 +8,7 @@ use chrono::TimeDelta;
 use openflip_render::{render_offscreen, CardFlip, Gpu, Painter, OFFSCREEN_FORMAT};
 
 use crate::cli::Options;
+use crate::menu::SettingsMenu;
 use crate::Look;
 
 pub fn run(look: &Look, options: &Options, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +40,11 @@ pub fn run(look: &Look, options: &Options, path: &Path) -> Result<(), Box<dyn st
             .map(CardFlip::at_rest)
             .collect::<Vec<_>>(),
     };
-    let scene = look.scene(&cards, time, size);
+    let mut scene = look.scene(&cards, time, size);
+    if options.settings {
+        let overlay = look.overlay(&SettingsMenu::default(), None, size);
+        scene.groups.extend(overlay.groups);
+    }
 
     let instance =
         wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
