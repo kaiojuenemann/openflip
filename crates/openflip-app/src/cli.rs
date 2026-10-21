@@ -8,6 +8,7 @@ pub const USAGE: &str = "\
 Usage: openflip [OPTIONS]
 
 Options:
+  --fullscreen          Start fullscreen (the default)
   --windowed            Start in a window instead of fullscreen
   --settings            Open the settings in a window; closing them quits
   --screenshot <FILE>   Render one frame to a PNG file and exit
@@ -49,6 +50,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
     while let Some(arg) = args.next() {
         let mut value = |name: &str| args.next().ok_or_else(|| format!("{name} needs a value"));
         match arg.as_str() {
+            "--fullscreen" => options.windowed = false,
             "--windowed" => options.windowed = true,
             "--settings" => options.settings = true,
             "--screenshot" => options.screenshot = Some(value("--screenshot")?.into()),
@@ -184,6 +186,21 @@ mod tests {
         assert!(parse(args(&["/c"])).unwrap().settings);
         assert!(parse(args(&["/c:4321"])).unwrap().settings);
         assert!(parse(args(&["-C"])).unwrap().settings);
+    }
+
+    #[test]
+    fn the_last_of_fullscreen_and_windowed_wins() {
+        assert!(!parse(args(&["--fullscreen"])).unwrap().windowed);
+        assert!(
+            parse(args(&["--fullscreen", "--windowed"]))
+                .unwrap()
+                .windowed
+        );
+        assert!(
+            !parse(args(&["--windowed", "--fullscreen"]))
+                .unwrap()
+                .windowed
+        );
     }
 
     #[test]

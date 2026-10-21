@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use openflip_host::{Clock, Key, Response};
 use openflip_render::SurfaceRenderer;
@@ -13,7 +14,7 @@ use winit::keyboard::{Key as WinitKey, NamedKey};
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId, WindowLevel};
 
 use crate::cli::Options;
-use crate::screensaver::ExitOnInput;
+use crate::screensaver::{ExitOnInput, Input};
 
 enum Mode {
     /// The interactive clock: settings, fullscreen toggle and so on.
@@ -39,7 +40,7 @@ pub fn run(
     }
     let mode = match options.preview {
         Some(parent) => Mode::Preview(parent),
-        None if options.screensaver => Mode::Screensaver(ExitOnInput::default()),
+        None if options.screensaver => Mode::Screensaver(ExitOnInput::new(Instant::now())),
         None => Mode::App,
     };
     let mut app = App {
@@ -254,20 +255,24 @@ impl ApplicationHandler for App {
             Mode::App => {}
             // Any key, click, scroll or real mouse movement ends the screensaver.
             Mode::Screensaver(exit) => {
-                let user_input = match &event {
-                    WindowEvent::KeyboardInput { .. }
-                    | WindowEvent::MouseInput { .. }
-                    | WindowEvent::MouseWheel { .. } => true,
+                let input = match &event {
+                    WindowEvent::KeyboardInput { event, .. }
+                        if event.state == ElementState::Pressed =>
+                    {
+                        Input::KeyPressed
+                    }
+                    WindowEvent::MouseInput {
+                        state: ElementState::Pressed,
+                        ..
+                    } => Input::ButtonPressed,
+                    WindowEvent::MouseWheel { .. } => Input::Wheel,
                     WindowEvent::CursorMoved { position, .. } => {
-                        exit.mouse_moved(position.x, position.y)
+                        Input::MouseAt(position.x, position.y)
                     }
-                    WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
-                        exit.window_changed();
-                        false
-                    }
-                    _ => false,
+                    WindowEvent::Resized(_) | WindowEvent::Moved(_) => Input::WindowChanged,
+                    _ => Input::Other,
                 };
-                if user_input {
+                if exit.ends(input, Instant::now()) {
                     log::info!("screensaver ends on {event:?}");
                     return event_loop.exit();
                 }

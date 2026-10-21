@@ -1,6 +1,7 @@
 # Runs openflip.scr the way Windows does: as screensaver (/s), settings (/c)
 # and as preview (/p) inside another process's window, which must end the
-# preview when it closes.
+# preview when it closes; also the app fullscreen and windowed. Every run
+# must keep running and be able to draw into its window.
 #
 #   powershell -File platform\windows\smoke-test.ps1 target\windows\openflip.scr
 
@@ -54,21 +55,28 @@ function Expect-Running([System.Diagnostics.Process] $Process, [string] $What) {
     }
 }
 
-function Stop-Openflip([System.Diagnostics.Process] $Process, [string] $Name) {
+function Stop-Openflip([System.Diagnostics.Process] $Process, [string] $Name, [string] $What) {
     if (-not $Process.HasExited) { Stop-Process -Id $Process.Id }
     $Process.WaitForExit()
     Show-Output $Name
+    $err = Join-Path $logs "$Name.err"
+    if ((Test-Path $err) -and (Select-String -Path $err -SimpleMatch 'cannot draw into the window' -Quiet)) {
+        Fail "$What could not draw into its window"
+    }
 }
 
-$saver = Start-Openflip '/s' 'saver'
-Pump 5
-Expect-Running $saver 'screensaver (/s)'
-Stop-Openflip $saver 'saver'
+# Runs one mode for a few seconds, expecting it to stay up and draw.
+function Test-Mode([string[]] $Arguments, [string] $Name, [string] $What) {
+    $process = Start-Openflip $Arguments $Name
+    Pump 5
+    Expect-Running $process $What
+    Stop-Openflip $process $Name $What
+}
 
-$settings = Start-Openflip '/c' 'settings'
-Pump 5
-Expect-Running $settings 'settings (/c)'
-Stop-Openflip $settings 'settings'
+Test-Mode '/s' 'saver' 'screensaver (/s)'
+Test-Mode '/c' 'settings' 'settings (/c)'
+Test-Mode '--fullscreen' 'app' 'app (fullscreen)'
+Test-Mode '--windowed' 'windowed' 'app (windowed)'
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'preview host'
@@ -85,7 +93,7 @@ if ($preview.HasExited) {
 } else {
     Fail 'preview kept running after its window closed'
 }
-Stop-Openflip $preview 'preview'
+Stop-Openflip $preview 'preview' 'preview (/p)'
 
 if ($failures.Count -gt 0) {
     Write-Error "smoke test failed: $($failures -join '; ')"
