@@ -8,7 +8,7 @@ use std::process::ExitCode;
 
 use chrono::NaiveDateTime;
 use openflip_core::{ClockFace, Config, DateLine, Language};
-use openflip_render::{layout, Font, Scene, Theme};
+use openflip_render::{layout, CardContent, CardFlip, Font, Scene, Theme};
 
 fn main() -> ExitCode {
     let options = match cli::parse(std::env::args().skip(1)) {
@@ -82,13 +82,17 @@ impl Look {
         }
     }
 
-    pub fn scene_at(&self, time: NaiveDateTime, size: (u32, u32)) -> Scene {
-        let face = ClockFace::at(time, &self.config);
+    /// The cards the clock shows at `time`.
+    pub fn cards_at(&self, time: NaiveDateTime) -> Vec<CardContent> {
+        CardContent::from_face(&ClockFace::at(time, &self.config))
+    }
+
+    pub fn scene(&self, cards: &[CardFlip], time: NaiveDateTime, size: (u32, u32)) -> Scene {
         let date = self
             .config
             .show_date
             .then(|| DateLine::at(time, self.language));
-        layout::build_scene(&face, date.as_ref(), &self.theme, size, self.config.scale)
+        layout::build_scene(cards, date.as_ref(), &self.theme, size, self.config.scale)
     }
 }
 

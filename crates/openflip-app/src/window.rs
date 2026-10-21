@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{NaiveDateTime, Timelike};
-use openflip_render::SurfaceRenderer;
+use openflip_render::{Flipper, SurfaceRenderer};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
@@ -16,6 +16,9 @@ use crate::Look;
 
 /// Redraw slightly after the second turns over, never just before it.
 const TICK_SLACK: Duration = Duration::from_millis(5);
+/// Upper bound on the frame rate during a flip. Presenting normally waits
+/// for vsync anyway; this keeps systems without vsync from spinning.
+const MIN_FRAME_TIME: Duration = Duration::from_micros(1_000_000 / 120);
 
 pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoop::new()?;
@@ -24,6 +27,9 @@ pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Erro
         look,
         fullscreen: !options.windowed,
         fixed_time: options.time,
+        flipper: Flipper::default(),
+        started: Instant::now(),
+        next_frame: None,
         window: None,
         renderer: None,
         error: None,
@@ -40,6 +46,11 @@ struct App {
     look: Look,
     fullscreen: bool,
     fixed_time: Option<NaiveDateTime>,
+    flipper: Flipper,
+    /// Origin of the animation clock.
+    started: Instant,
+    /// When the next animation frame is due, while a flap is moving.
+    next_frame: Option<Instant>,
     window: Option<Arc<Window>>,
     renderer: Option<SurfaceRenderer>,
     error: Option<String>,
@@ -136,11 +147,21 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                let frame_start = Instant::now();
                 let now = self.now();
+                let t = self.started.elapsed().as_secs_f64();
+                self.flipper.update(&self.look.cards_at(now), t);
                 if let Some(renderer) = &mut self.renderer {
-                    let scene = self.look.scene_at(now, renderer.size());
+                    let scene = self
+                        .look
+                        .scene(&self.flipper.cards(t), now, renderer.size());
                     renderer.render(&scene);
                 }
+                // Keep drawing while a flap moves.
+                self.next_frame = self
+                    .flipper
+                    .is_animating(t)
+                    .then(|| frame_start + MIN_FRAME_TIME);
             }
             WindowEvent::KeyboardInput {
                 event:
@@ -165,11 +186,17 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.fixed_time.is_some() {
-            event_loop.set_control_flow(ControlFlow::Wait);
-        } else {
-            let next = Instant::now() + self.until_next_tick() + TICK_SLACK;
-            event_loop.set_control_flow(ControlFlow::WaitUntil(next));
-        }
+        let next_tick = self
+            .fixed_time
+            .is_none()
+            .then(|| Instant::now() + self.until_next_tick() + TICK_SLACK);
+        let wake = match (self.next_frame, next_tick) {
+            (Some(frame), Some(tick)) => Some(frame.min(tick)),
+            (frame, tick) => frame.or(tick),
+        };
+        event_loop.set_control_flow(match wake {
+            Some(at) => ControlFlow::WaitUntil(at),
+            None => ControlFlow::Wait,
+        });
     }
 }

@@ -4,10 +4,11 @@ use ab_glyph::{Font as _, PxScale, ScaleFont as _};
 
 use crate::atlas::{Atlas, AtlasFull};
 use crate::font::Font;
-use crate::scene::{Color, HAlign, Rect, Scene, Text};
+use crate::scene::{Color, Fold, HAlign, Half, Item, Rect, Scene, Text};
 
-/// Floats per instance: rect (4), atlas rect (4), colour (4), params (2).
-const INSTANCE_FLOATS: usize = 14;
+/// Floats per instance: rect (4), atlas rect (4), colour (4), params (2),
+/// fold (8).
+const INSTANCE_FLOATS: usize = 22;
 const MODE_RECT: f32 = 0.0;
 const MODE_GLYPH: f32 = 1.0;
 
@@ -70,6 +71,8 @@ impl Painter {
             1 => Float32x4,
             2 => Float32x4,
             3 => Float32x2,
+            4 => Float32x4,
+            5 => Float32x4,
         ];
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("openflip pipeline"),
@@ -150,10 +153,7 @@ impl Painter {
                         // The glyphs do not fit even the largest texture the
                         // device supports: draw the cards without text
                         // rather than nothing.
-                        let mut data = Vec::new();
-                        self.push_rects(&scene.rects, &mut data);
-                        self.push_rects(&scene.overlays, &mut data);
-                        break data;
+                        break self.build_rects_only(scene);
                     }
                     self.bind_group = Self::bind_group(
                         device,
@@ -221,40 +221,57 @@ impl Painter {
         scene: &Scene,
     ) -> Result<Vec<f32>, AtlasFull> {
         let mut data = Vec::new();
-        self.push_rects(&scene.rects, &mut data);
-        for text in &scene.texts {
-            self.push_text(queue, text, &mut data)?;
+        for group in &scene.groups {
+            let fold = fold_params(group.fold);
+            for item in &group.items {
+                match item {
+                    Item::Rect(rect) => self.push_rect(rect, &fold, &mut data),
+                    Item::Text(text) => self.push_text(queue, text, &fold, &mut data)?,
+                }
+            }
         }
-        self.push_rects(&scene.overlays, &mut data);
         Ok(data)
     }
 
-    fn push_rects(&self, rects: &[Rect], data: &mut Vec<f32>) {
-        for rect in rects {
-            let c = self.color(rect.color);
-            data.extend_from_slice(&[
-                rect.x,
-                rect.y,
-                rect.width,
-                rect.height,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                c.r,
-                c.g,
-                c.b,
-                c.a,
-                rect.radius,
-                MODE_RECT,
-            ]);
+    fn build_rects_only(&self, scene: &Scene) -> Vec<f32> {
+        let mut data = Vec::new();
+        for group in &scene.groups {
+            let fold = fold_params(group.fold);
+            for item in &group.items {
+                if let Item::Rect(rect) = item {
+                    self.push_rect(rect, &fold, &mut data);
+                }
+            }
         }
+        data
+    }
+
+    fn push_rect(&self, rect: &Rect, fold: &[f32; 8], data: &mut Vec<f32>) {
+        let c = self.color(rect.color);
+        data.extend_from_slice(&[
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            c.r,
+            c.g,
+            c.b,
+            c.a,
+            rect.radius,
+            MODE_RECT,
+        ]);
+        data.extend_from_slice(fold);
     }
 
     fn push_text(
         &mut self,
         queue: &wgpu::Queue,
         text: &Text,
+        fold: &[f32; 8],
         data: &mut Vec<f32>,
     ) -> Result<(), AtlasFull> {
         let font = self.font.0.as_scaled(PxScale::from(text.size));
@@ -318,6 +335,7 @@ impl Painter {
                 0.0,
                 MODE_GLYPH,
             ]);
+            data.extend_from_slice(fold);
         }
         Ok(())
     }
@@ -364,6 +382,28 @@ impl Painter {
                 },
             ],
         })
+    }
+}
+
+/// Instance data for a fold: hinge y, centre x, half (-1 top, 1 bottom,
+/// 0 none), angle, eye distance (0 = not rotated), shade, shade falloff,
+/// padding.
+fn fold_params(fold: Option<Fold>) -> [f32; 8] {
+    match fold {
+        None => [0.0; 8],
+        Some(f) => [
+            f.hinge_y,
+            f.center_x,
+            match f.half {
+                Half::Top => -1.0,
+                Half::Bottom => 1.0,
+            },
+            f.angle,
+            f.eye_distance,
+            f.shade,
+            f.shade_falloff,
+            0.0,
+        ],
     }
 }
 
