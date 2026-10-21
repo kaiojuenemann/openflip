@@ -31,8 +31,10 @@ for arch in "${ARCHS[@]}"; do
 done
 
 # The system libraries the Rust static library needs, as rustc reports them.
+# --color never: with CARGO_TERM_COLOR=always (as in CI) the line would end
+# in an escape code that the linker reads as part of a library name.
 touch "$ROOT/crates/openflip-ffi/src/lib.rs"
-NATIVE_LIBS="$(cargo rustc --manifest-path "$ROOT/Cargo.toml" --release --locked \
+NATIVE_LIBS="$(cargo rustc --color never --manifest-path "$ROOT/Cargo.toml" --release --locked \
     --target aarch64-apple-darwin -p openflip-ffi --lib --crate-type staticlib \
     -- --print native-static-libs 2>&1 | sed -n 's/.*native-static-libs: //p' | tail -1)"
 echo "==> native libraries: $NATIVE_LIBS"
