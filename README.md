@@ -6,8 +6,9 @@ classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
 > **Status:** early development. The clock runs as an app with the 3D flip
-> animation and an in-app settings panel; screensaver integration is next —
-> see the [roadmap](docs/ROADMAP.md).
+> animation and an in-app settings panel, and as a macOS screensaver
+> ([install guide](platform/macos/README.md)); Windows and Linux
+> screensavers are next — see the [roadmap](docs/ROADMAP.md).
 
 ![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
@@ -25,7 +26,7 @@ the MIT license.
 
 | Platform | Screensaver | App |
 |---|---|---|
-| macOS | `.saver` bundle (Swift wrapper around the Rust core, unsigned for now) | fullscreen / windowed |
+| macOS | `OpenFlip.saver` — [install guide](platform/macos/README.md) | `openflip.app`, fullscreen / windowed |
 | Windows | `.scr` (`/s`, `/p`, `/c`) | fullscreen / windowed |
 | Linux | XScreenSaver hack (X11) | fullscreen / windowed (X11 and Wayland, e.g. launched by an idle daemon) |
 
@@ -99,8 +100,10 @@ language = "german"   # or "english"; omit to follow the system
 ```
 crates/openflip-core   clock logic, configuration, translations (no OS/GPU code)
 crates/openflip-render layout, themes and wgpu renderer (no windowing code)
+crates/openflip-host   clock behaviour shared by all hosts: timing, settings, config
+crates/openflip-ffi    C interface for hosts in other languages
 crates/openflip-app    the openflip binary (winit window, CLI)
-platform/macos         .saver bundle (Swift wrapper)          — planned
+platform/macos         OpenFlip.saver (Swift) and openflip.app bundling
 platform/windows       .scr packaging                          — planned
 platform/linux         XScreenSaver integration                — planned
 ```

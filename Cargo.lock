@@ -1275,6 +1275,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "openflip-core",
+ "openflip-host",
  "openflip-render",
  "png",
  "pollster",
@@ -1291,6 +1292,28 @@ dependencies = [
  "directories",
  "serde",
  "toml",
+]
+
+[[package]]
+name = "openflip-ffi"
+version = "0.0.1"
+dependencies = [
+ "openflip-core",
+ "openflip-host",
+ "openflip-render",
+ "pollster",
+ "raw-window-handle",
+ "wgpu",
+]
+
+[[package]]
+name = "openflip-host"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "openflip-core",
+ "openflip-render",
+ "sys-locale",
 ]
 
 [[package]]
@@ -1857,6 +1880,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
