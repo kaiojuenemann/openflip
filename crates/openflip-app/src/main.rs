@@ -16,6 +16,9 @@ use openflip_host::{load_config, Look};
 
 fn main() -> ExitCode {
     attach_console();
+    // Errors from the graphics stack by default; RUST_LOG=warn (or info,
+    // debug) shows more when something goes wrong.
+    env_logger::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     // Windows opens a screensaver without arguments when the user wants to
     // configure it (e.g. double-click on openflip.scr).

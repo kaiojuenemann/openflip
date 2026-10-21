@@ -22,6 +22,7 @@ openflip-host = { path = "crates/openflip-host" }
 ab_glyph = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 directories = "6"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
 png = "0.18"
 pollster = "0.4"
 serde = { version = "1", features = ["derive"] }

@@ -10,8 +10,8 @@ repository.workspace = true
 [dependencies]
 openflip-core.workspace = true
 ab_glyph.workspace = true
+pollster.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
 chrono.workspace = true
-pollster.workspace = true

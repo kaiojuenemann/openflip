@@ -8,6 +8,7 @@ param([Parameter(Mandatory)] [string] $Scr)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 $env:RUST_BACKTRACE = '1'
+$env:RUST_LOG = 'warn'
 $logs = Join-Path ([System.IO.Path]::GetTempPath()) 'openflip-smoke'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
@@ -53,11 +54,15 @@ $saver = Start-Openflip '/s' 'saver'
 Pump 5
 Expect-Running $saver 'screensaver (/s)' 'saver'
 Stop-Process -Id $saver.Id
+$saver.WaitForExit()
+Show-Output 'saver'
 
 $settings = Start-Openflip '/c' 'settings'
 Pump 5
 Expect-Running $settings 'settings (/c)' 'settings'
 Stop-Process -Id $settings.Id
+$settings.WaitForExit()
+Show-Output 'settings'
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'preview host'
@@ -73,5 +78,6 @@ if (-not $preview.HasExited) {
     Stop-Process -Id $preview.Id
     Fail 'preview kept running after its window closed' 'preview'
 }
+Show-Output 'preview'
 Write-Output 'preview ended with its window'
 Write-Output 'OK'
