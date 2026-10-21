@@ -1,0 +1,17 @@
+[package]
+name = "openflip-render"
+description = "GPU renderer for the openflip flip clock"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+openflip-core.workspace = true
+ab_glyph.workspace = true
+wgpu.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+pollster.workspace = true

@@ -5,8 +5,10 @@ screensaver and as a standalone fullscreen/windowed app. Inspired by the
 classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
-> **Status:** early development. Nothing is usable yet — see the
-> [roadmap](docs/ROADMAP.md).
+> **Status:** early development. The clock runs as an app (no flip
+> animation or screensaver integration yet) — see the [roadmap](docs/ROADMAP.md).
+
+![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
 ## Planned features (v0.1)
 
@@ -36,8 +38,26 @@ Requires a recent stable Rust toolchain (see `rust-version` in `Cargo.toml`).
 ```sh
 cargo build
 cargo test
-cargo run --bin openflip
+cargo run --release --bin openflip
 ```
+
+On Linux the app needs the usual desktop libraries at runtime
+(`libxkbcommon-x11` on X11, a Vulkan or OpenGL driver); every desktop
+installation has them.
+
+## Usage
+
+```
+openflip [--windowed] [--screenshot FILE [--size WxH]] [--time HH:MM[:SS]]
+```
+
+| Key | Action |
+|---|---|
+| `F` / `F11` | toggle fullscreen |
+| `Esc` / `Q` | quit |
+
+`--screenshot` renders a single frame to a PNG without opening a window;
+`--time` freezes the clock at a given time, which is handy for screenshots.
 
 ## Configuration
 
@@ -53,8 +73,9 @@ Settings live in `config.toml` in your user config directory:
 time_format = "h24"   # or "h12"
 show_seconds = false
 show_date = true
-theme = "classic"
-scale = 0.9
+theme = "classic"     # classic, light, amber or midnight
+scale = 0.9           # share of the screen the clock may fill
+# font = "/path/to/font.ttf"
 monitors = "all"      # or "primary"
 language = "german"   # or "english"; omit to follow the system
 ```
@@ -63,7 +84,8 @@ language = "german"   # or "english"; omit to follow the system
 
 ```
 crates/openflip-core   clock logic, configuration, translations (no OS/GPU code)
-crates/openflip-app    the openflip binary
+crates/openflip-render layout, themes and wgpu renderer (no windowing code)
+crates/openflip-app    the openflip binary (winit window, CLI)
 platform/macos         .saver bundle (Swift wrapper)          — planned
 platform/windows       .scr packaging                          — planned
 platform/linux         XScreenSaver integration                — planned
@@ -76,4 +98,5 @@ our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled font Inter Display is licensed under the
+[SIL Open Font License 1.1](crates/openflip-render/assets/OFL.txt).

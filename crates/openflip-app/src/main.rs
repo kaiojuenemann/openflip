@@ -1,39 +1,95 @@
 //! openflip application entry point.
-//!
-//! For now this prints the clock face to the terminal so the core can be
-//! exercised end to end; the GPU renderer replaces it in milestone 1.
+
+mod cli;
+mod screenshot;
+mod window;
 
 use std::process::ExitCode;
 
+use chrono::NaiveDateTime;
 use openflip_core::{ClockFace, Config, DateLine, Language};
+use openflip_render::{layout, Font, Scene, Theme};
 
 fn main() -> ExitCode {
-    let config = match Config::default_path().and_then(|path| Config::load(&path)) {
-        Ok(config) => config,
+    let options = match cli::parse(std::env::args().skip(1)) {
+        Ok(options) => options,
         Err(e) => {
-            eprintln!("openflip: {e}");
+            eprintln!("openflip: {e}\n\n{}", cli::USAGE);
             return ExitCode::FAILURE;
         }
     };
-    let language = config.language.unwrap_or_else(system_language);
-    let now = chrono::Local::now().naive_local();
+    if options.help {
+        println!("{}", cli::USAGE);
+        return ExitCode::SUCCESS;
+    }
 
-    let face = ClockFace::at(now, &config);
-    let mut line = format!(
-        "{}{}:{}{}",
-        face.hours[0], face.hours[1], face.minutes[0], face.minutes[1]
-    );
-    if let Some(seconds) = face.seconds {
-        line.push_str(&format!(":{}{}", seconds[0], seconds[1]));
+    let look = Look::from_config(load_config());
+    let result = match &options.screenshot {
+        Some(path) => screenshot::run(&look, &options, path),
+        None => window::run(look, &options),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("openflip: {e}");
+            ExitCode::FAILURE
+        }
     }
-    if let Some(pm) = face.pm {
-        line.push_str(if pm { " PM" } else { " AM" });
+}
+
+/// A broken config file should not keep the clock from showing.
+fn load_config() -> Config {
+    match Config::default_path().and_then(|path| Config::load(&path)) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("openflip: {e}; using default settings");
+            Config::default()
+        }
     }
-    println!("{line}");
-    if config.show_date {
-        println!("{}", DateLine::at(now, language).0);
+}
+
+/// Everything derived from the config that is needed to draw a frame.
+pub struct Look {
+    pub config: Config,
+    pub theme: Theme,
+    pub language: Language,
+    pub font: Font,
+}
+
+impl Look {
+    fn from_config(config: Config) -> Self {
+        let theme = Theme::by_name(&config.theme).unwrap_or_else(|| {
+            eprintln!(
+                "openflip: unknown theme '{}', using 'classic' (available: {})",
+                config.theme,
+                Theme::NAMES.join(", ")
+            );
+            Theme::classic()
+        });
+        let font = match &config.font {
+            Some(path) => Font::from_file(path).unwrap_or_else(|e| {
+                eprintln!("openflip: {}: {e}; using the bundled font", path.display());
+                Font::bundled()
+            }),
+            None => Font::bundled(),
+        };
+        let language = config.language.unwrap_or_else(system_language);
+        Self {
+            config,
+            theme,
+            language,
+            font,
+        }
     }
-    ExitCode::SUCCESS
+
+    pub fn scene_at(&self, time: NaiveDateTime, size: (u32, u32)) -> Scene {
+        let face = ClockFace::at(time, &self.config);
+        let date = self
+            .config
+            .show_date
+            .then(|| DateLine::at(time, self.language));
+        layout::build_scene(&face, date.as_ref(), &self.theme, size, self.config.scale)
+    }
 }
 
 fn system_language() -> Language {
