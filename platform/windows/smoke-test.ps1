@@ -7,8 +7,29 @@
 param([Parameter(Mandatory)] [string] $Scr)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
+$env:RUST_BACKTRACE = '1'
+$logs = Join-Path ([System.IO.Path]::GetTempPath()) 'openflip-smoke'
+New-Item -ItemType Directory -Force $logs | Out-Null
 
-function Fail([string] $Message) {
+# Starts openflip with its output captured, so a failure can show why.
+function Start-Openflip([string[]] $Arguments, [string] $Name) {
+    Start-Process -FilePath $Scr -ArgumentList $Arguments -PassThru `
+        -RedirectStandardOutput (Join-Path $logs "$Name.out") `
+        -RedirectStandardError (Join-Path $logs "$Name.err")
+}
+
+function Show-Output([string] $Name) {
+    foreach ($stream in 'out', 'err') {
+        $file = Join-Path $logs "$Name.$stream"
+        if ((Test-Path $file) -and (Get-Item $file).Length -gt 0) {
+            Write-Output "--- $Name std$stream ---"
+            Get-Content $file | Write-Output
+        }
+    }
+}
+
+function Fail([string] $Message, [string] $Name) {
+    if ($Name) { Show-Output $Name }
     Write-Error "smoke test failed: $Message"
     exit 1
 }
@@ -23,19 +44,19 @@ function Pump([double] $Seconds) {
     }
 }
 
-function Expect-Running([System.Diagnostics.Process] $Process, [string] $What) {
-    if ($Process.HasExited) { Fail "$What exited early with code $($Process.ExitCode)" }
+function Expect-Running([System.Diagnostics.Process] $Process, [string] $What, [string] $Name) {
+    if ($Process.HasExited) { Fail "$What exited early with code $($Process.ExitCode)" $Name }
     Write-Output "$What is running"
 }
 
-$saver = Start-Process -FilePath $Scr -ArgumentList '/s' -PassThru
+$saver = Start-Openflip '/s' 'saver'
 Pump 5
-Expect-Running $saver 'screensaver (/s)'
+Expect-Running $saver 'screensaver (/s)' 'saver'
 Stop-Process -Id $saver.Id
 
-$settings = Start-Process -FilePath $Scr -ArgumentList '/c' -PassThru
+$settings = Start-Openflip '/c' 'settings'
 Pump 5
-Expect-Running $settings 'settings (/c)'
+Expect-Running $settings 'settings (/c)' 'settings'
 Stop-Process -Id $settings.Id
 
 $form = New-Object System.Windows.Forms.Form
@@ -43,14 +64,14 @@ $form.Text = 'preview host'
 $form.ClientSize = New-Object System.Drawing.Size(152, 112)
 $form.Show()
 Pump 1
-$preview = Start-Process -FilePath $Scr -ArgumentList '/p', $form.Handle.ToInt64() -PassThru
+$preview = Start-Openflip @('/p', $form.Handle.ToInt64()) 'preview'
 Pump 5
-Expect-Running $preview 'preview (/p)'
+Expect-Running $preview 'preview (/p)' 'preview'
 $form.Close()
 Pump 5
 if (-not $preview.HasExited) {
     Stop-Process -Id $preview.Id
-    Fail 'preview kept running after its window closed'
+    Fail 'preview kept running after its window closed' 'preview'
 }
 Write-Output 'preview ended with its window'
 Write-Output 'OK'
