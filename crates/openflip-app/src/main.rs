@@ -1,17 +1,13 @@
 //! openflip application entry point.
 
 mod cli;
-mod menu;
 mod screenshot;
 mod window;
 
 use std::process::ExitCode;
 
-use chrono::NaiveDateTime;
-use menu::SettingsMenu;
-use openflip_core::{ClockFace, Config, DateLine, Language};
-use openflip_render::overlay::{build_overlay, OverlayLayout};
-use openflip_render::{layout, CardContent, CardFlip, Font, Scene, Theme};
+use openflip_core::Config;
+use openflip_host::{load_config, Look};
 
 fn main() -> ExitCode {
     let options = match cli::parse(std::env::args().skip(1)) {
@@ -26,10 +22,13 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let look = Look::from_config(load_config());
+    let config_path = Config::default_path().ok();
     let result = match &options.screenshot {
-        Some(path) => screenshot::run(&look, &options, path),
-        None => window::run(look, &options),
+        Some(path) => {
+            let look = Look::from_config(load_config(config_path.as_deref()));
+            screenshot::run(&look, &options, path)
+        }
+        None => window::run(config_path, &options),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -38,86 +37,4 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-/// A broken config file should not keep the clock from showing.
-fn load_config() -> Config {
-    match Config::default_path().and_then(|path| Config::load(&path)) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("openflip: {e}; using default settings");
-            Config::default()
-        }
-    }
-}
-
-/// Everything derived from the config that is needed to draw a frame.
-pub struct Look {
-    pub config: Config,
-    pub theme: Theme,
-    /// Language of the date and the settings.
-    pub language: Language,
-    /// The operating system's language, shown next to the "System" choice.
-    pub system_language: Language,
-    pub font: Font,
-}
-
-impl Look {
-    pub fn from_config(config: Config) -> Self {
-        let theme = Theme::by_name(&config.theme).unwrap_or_else(|| {
-            eprintln!(
-                "openflip: unknown theme '{}', using 'classic' (available: {})",
-                config.theme,
-                Theme::NAMES.join(", ")
-            );
-            Theme::classic()
-        });
-        let font = match &config.font {
-            Some(path) => Font::from_file(path).unwrap_or_else(|e| {
-                eprintln!("openflip: {}: {e}; using the bundled font", path.display());
-                Font::bundled()
-            }),
-            None => Font::bundled(),
-        };
-        let system_language = system_language();
-        Self {
-            language: config.language.unwrap_or(system_language),
-            config,
-            theme,
-            system_language,
-            font,
-        }
-    }
-
-    /// The cards the clock shows at `time`.
-    pub fn cards_at(&self, time: NaiveDateTime) -> Vec<CardContent> {
-        CardContent::from_face(&ClockFace::at(time, &self.config))
-    }
-
-    pub fn scene(&self, cards: &[CardFlip], time: NaiveDateTime, size: (u32, u32)) -> Scene {
-        let date = self
-            .config
-            .show_date
-            .then(|| DateLine::at(time, self.language));
-        layout::build_scene(cards, date.as_ref(), &self.theme, size, self.config.scale)
-    }
-
-    /// The settings panel, to be painted over a scene of the same size.
-    pub fn overlay(
-        &self,
-        menu: &SettingsMenu,
-        message: Option<String>,
-        size: (u32, u32),
-    ) -> OverlayLayout {
-        let view = menu.view(&self.config, self.language, self.system_language, message);
-        build_overlay(&view, &self.theme, size)
-    }
-}
-
-fn system_language() -> Language {
-    ["LC_ALL", "LC_MESSAGES", "LANG"]
-        .iter()
-        .find_map(|var| std::env::var(var).ok().filter(|v| !v.is_empty()))
-        .map(|tag| Language::from_locale(&tag))
-        .unwrap_or_default()
 }

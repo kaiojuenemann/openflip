@@ -7,9 +7,10 @@ use std::path::Path;
 use chrono::TimeDelta;
 use openflip_render::{render_offscreen, CardFlip, Gpu, Painter, OFFSCREEN_FORMAT};
 
+use openflip_host::menu::SettingsMenu;
+use openflip_host::Look;
+
 use crate::cli::Options;
-use crate::menu::SettingsMenu;
-use crate::Look;
 
 pub fn run(look: &Look, options: &Options, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let size = options.size.unwrap_or((1920, 1080));

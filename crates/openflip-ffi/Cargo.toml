@@ -1,0 +1,19 @@
+[package]
+name = "openflip-ffi"
+description = "C interface to openflip for hosts in other languages, such as the macOS screensaver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+openflip-core.workspace = true
+openflip-host.workspace = true
+openflip-render.workspace = true
+pollster.workspace = true
+raw-window-handle.workspace = true
+wgpu.workspace = true

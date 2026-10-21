@@ -2,47 +2,35 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use chrono::{NaiveDateTime, Timelike};
-use openflip_core::{Config, Text};
-use openflip_render::overlay::OverlayLayout;
-use openflip_render::{Flipper, Font, SurfaceRenderer};
+use openflip_host::{Clock, Key, Response};
+use openflip_render::SurfaceRenderer;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key as WinitKey, NamedKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::cli::Options;
-use crate::menu::{MenuAction, MenuKey, SettingsMenu};
-use crate::Look;
 
-/// Redraw slightly after the second turns over, never just before it.
-const TICK_SLACK: Duration = Duration::from_millis(5);
-/// Upper bound on the frame rate during a flip. Presenting normally waits
-/// for vsync anyway; this keeps systems without vsync from spinning.
-const MIN_FRAME_TIME: Duration = Duration::from_micros(1_000_000 / 120);
-
-pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    config_path: Option<PathBuf>,
+    options: &Options,
+) -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoop::new()?;
-    let config_path = Config::default_path().ok();
+    let mut clock = Clock::new(config_path);
+    if options.settings {
+        clock = clock.settings_only();
+    }
+    if let Some(time) = options.time {
+        clock = clock.fixed_time(time);
+    }
     let mut app = App {
         display: event_loop.owned_display_handle(),
-        look,
-        config_path,
+        clock,
         // The settings window, opened by the OS screensaver settings, is
         // never fullscreen.
         fullscreen: !options.windowed && !options.settings,
-        fixed_time: options.time,
-        flipper: Flipper::default(),
-        started: Instant::now(),
-        next_frame: None,
-        menu: options.settings.then(SettingsMenu::default),
-        settings_only: options.settings,
-        message: None,
-        overlay: None,
-        cursor: (0.0, 0.0),
         window: None,
         renderer: None,
         error: None,
@@ -56,58 +44,18 @@ pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Erro
 
 struct App {
     display: OwnedDisplayHandle,
-    look: Look,
-    /// Where settings are saved; `None` if the system has no config directory.
-    config_path: Option<PathBuf>,
+    clock: Clock,
     fullscreen: bool,
-    fixed_time: Option<NaiveDateTime>,
-    flipper: Flipper,
-    /// Origin of the animation clock.
-    started: Instant,
-    /// When the next animation frame is due, while a flap is moving.
-    next_frame: Option<Instant>,
-    /// The settings overlay, while it is open.
-    menu: Option<SettingsMenu>,
-    /// Started with `--settings`: closing the overlay quits.
-    settings_only: bool,
-    /// Error shown in the overlay, e.g. when saving failed.
-    message: Option<Text>,
-    /// The overlay as last drawn, for mouse hit-testing.
-    overlay: Option<OverlayLayout>,
-    cursor: (f32, f32),
     window: Option<Arc<Window>>,
     renderer: Option<SurfaceRenderer>,
     error: Option<String>,
 }
 
 impl App {
-    fn now(&self) -> NaiveDateTime {
-        self.fixed_time
-            .unwrap_or_else(|| chrono::Local::now().naive_local())
-    }
-
-    /// Time until the clock face next changes.
-    fn until_next_tick(&self) -> Duration {
-        let now = chrono::Local::now().naive_local();
-        let millis = u64::from(now.nanosecond() / 1_000_000).min(999);
-        let to_next_second = Duration::from_millis(1000 - millis);
-        if self.look.config.show_seconds {
-            to_next_second
-        } else {
-            to_next_second + Duration::from_secs(59 - u64::from(now.second().min(59)))
-        }
-    }
-
-    fn redraw(&self) {
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
-    }
-
     /// The cursor is hidden in fullscreen, except while the settings are open.
     fn update_cursor(&self) {
         if let Some(window) = &self.window {
-            window.set_cursor_visible(!self.fullscreen || self.menu.is_some());
+            window.set_cursor_visible(!self.fullscreen || self.clock.is_settings_open());
         }
     }
 
@@ -119,173 +67,37 @@ impl App {
         self.update_cursor();
     }
 
-    fn open_menu(&mut self) {
-        self.menu = Some(SettingsMenu::default());
-        self.message = None;
-        self.update_cursor();
-        self.redraw();
-    }
-
-    fn close_menu(&mut self, event_loop: &ActiveEventLoop) {
-        if self.settings_only {
-            event_loop.exit();
-            return;
-        }
-        self.menu = None;
-        self.overlay = None;
-        self.update_cursor();
-        self.redraw();
-    }
-
-    fn handle_menu_action(&mut self, action: MenuAction, config: Config) {
-        match action {
-            MenuAction::Nothing => return,
-            MenuAction::Redraw => {}
-            MenuAction::ConfigChanged => self.apply_config(config),
-            MenuAction::ChooseFont => self.choose_font(),
-        }
-        self.redraw();
-    }
-
-    /// Lets the user pick a font file with the system's file dialog.
-    fn choose_font(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("Fonts", &["ttf", "otf", "ttc"])
-            .pick_file()
-        else {
-            return;
-        };
-        if Font::from_file(&path).is_err() {
-            self.message = Some(Text::FontFailed);
-            return;
-        }
-        let config = Config {
-            font: Some(path),
-            ..self.look.config.clone()
-        };
-        self.apply_config(config);
-    }
-
-    /// Uses a changed config right away and saves it.
-    fn apply_config(&mut self, config: Config) {
-        let font_changed = config.font != self.look.config.font;
-        self.look = Look::from_config(config);
-        if font_changed {
-            if let Some(renderer) = &mut self.renderer {
-                renderer.set_font(self.look.font.clone());
+    fn respond(&mut self, event_loop: &ActiveEventLoop, response: Response) {
+        match response {
+            Response::Nothing => {}
+            Response::Redraw => {
+                self.update_cursor();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
             }
-        }
-        let saved = match &self.config_path {
-            Some(path) => self.look.config.save(path).map_err(|e| e.to_string()),
-            None => Err("no config directory".into()),
-        };
-        self.message = match saved {
-            Ok(()) => None,
-            Err(e) => {
-                eprintln!("openflip: could not save settings: {e}");
-                Some(Text::SaveFailed)
+            Response::ChooseFont => {
+                let picked = rfd::FileDialog::new()
+                    .add_filter("Fonts", &["ttf", "otf", "ttc"])
+                    .pick_file();
+                if let Some(path) = picked {
+                    let response = self.clock.set_font(path);
+                    self.respond(event_loop, response);
+                }
             }
-        };
-    }
-
-    /// Handles a key while the settings are open.
-    fn menu_key(&mut self, event_loop: &ActiveEventLoop, key: Key<&str>, repeat: bool) {
-        let menu_key = match key {
-            Key::Named(NamedKey::ArrowUp) => MenuKey::Up,
-            Key::Named(NamedKey::ArrowDown) => MenuKey::Down,
-            Key::Named(NamedKey::ArrowLeft) => MenuKey::Left,
-            Key::Named(NamedKey::ArrowRight) => MenuKey::Right,
-            _ if repeat => return,
-            Key::Named(NamedKey::Enter | NamedKey::Space) => MenuKey::Activate,
-            Key::Named(NamedKey::Delete | NamedKey::Backspace) => MenuKey::Reset,
-            Key::Named(NamedKey::Escape) => return self.close_menu(event_loop),
-            Key::Character(c) if c.eq_ignore_ascii_case("s") => return self.close_menu(event_loop),
-            Key::Character(c) if c.eq_ignore_ascii_case("q") => return event_loop.exit(),
-            _ => return,
-        };
-        let mut config = self.look.config.clone();
-        if let Some(menu) = &mut self.menu {
-            let action = menu.key(menu_key, &mut config);
-            self.handle_menu_action(action, config);
-        }
-    }
-
-    /// Handles a key while only the clock is shown.
-    fn clock_key(&mut self, event_loop: &ActiveEventLoop, key: Key<&str>) {
-        match key {
-            Key::Named(NamedKey::Escape) => event_loop.exit(),
-            Key::Named(NamedKey::F11) => self.set_fullscreen(!self.fullscreen),
-            Key::Character(c) if c.eq_ignore_ascii_case("q") => event_loop.exit(),
-            Key::Character(c) if c.eq_ignore_ascii_case("f") => {
-                self.set_fullscreen(!self.fullscreen)
-            }
-            Key::Character(c) if c.eq_ignore_ascii_case("s") => self.open_menu(),
-            _ => {}
-        }
-    }
-
-    /// The overlay row under the cursor and whether it hit the "back" arrow.
-    fn row_under_cursor(&self) -> Option<(usize, bool)> {
-        let (x, y) = self.cursor;
-        let overlay = self.overlay.as_ref()?;
-        overlay
-            .rows
-            .iter()
-            .position(|row| row.contains(x, y))
-            .map(|i| (i, overlay.rows[i].is_back(x)))
-    }
-
-    fn mouse_moved(&mut self) {
-        let Some((row, _)) = self.row_under_cursor() else {
-            return;
-        };
-        if let Some(menu) = &mut self.menu {
-            let action = menu.hover(row);
-            let config = self.look.config.clone();
-            self.handle_menu_action(action, config);
-        }
-    }
-
-    fn mouse_clicked(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(overlay) = &self.overlay else {
-            return;
-        };
-        let (x, y) = self.cursor;
-        if !overlay.panel.contains(x, y) {
-            return self.close_menu(event_loop);
-        }
-        let Some((row, back)) = self.row_under_cursor() else {
-            return;
-        };
-        let mut config = self.look.config.clone();
-        if let Some(menu) = &mut self.menu {
-            let action = menu.click(row, back, &mut config);
-            self.handle_menu_action(action, config);
+            Response::Exit => event_loop.exit(),
         }
     }
 
     fn draw(&mut self) {
-        let frame_start = Instant::now();
-        let now = self.now();
-        let t = self.started.elapsed().as_secs_f64();
-        self.flipper.update(&self.look.cards_at(now), t);
-        if let Some(renderer) = &mut self.renderer {
-            let size = renderer.size();
-            let mut scene = self.look.scene(&self.flipper.cards(t), now, size);
-            self.overlay = self.menu.as_ref().map(|menu| {
-                let message = self.message.map(|m| self.look.language.text(m).to_string());
-                self.look.overlay(menu, message, size)
-            });
-            if let Some(overlay) = &self.overlay {
-                scene.groups.extend(overlay.groups.iter().cloned());
-            }
-            renderer.render(&scene);
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        let frame = self.clock.frame(renderer.size());
+        if let Some(font) = frame.new_font {
+            renderer.set_font(font);
         }
-        // Keep drawing while a flap moves.
-        self.next_frame = self
-            .flipper
-            .is_animating(t)
-            .then(|| frame_start + MIN_FRAME_TIME);
+        renderer.render(&frame.scene);
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
@@ -311,7 +123,7 @@ impl App {
             &instance,
             surface,
             (size.width, size.height),
-            self.look.font.clone(),
+            self.clock.look().font.clone(),
         ))
         .map_err(|e| e.to_string())?;
 
@@ -320,6 +132,25 @@ impl App {
         self.update_cursor();
         Ok(())
     }
+}
+
+/// Maps a key press to the clock's keys. Arrow keys repeat while held;
+/// everything else reacts to the first press only.
+fn clock_key(key: WinitKey<&str>, repeat: bool) -> Option<Key> {
+    let key = match key {
+        WinitKey::Named(NamedKey::ArrowUp) => Key::Up,
+        WinitKey::Named(NamedKey::ArrowDown) => Key::Down,
+        WinitKey::Named(NamedKey::ArrowLeft) => Key::Left,
+        WinitKey::Named(NamedKey::ArrowRight) => Key::Right,
+        _ if repeat => return None,
+        WinitKey::Named(NamedKey::Enter | NamedKey::Space) => Key::Activate,
+        WinitKey::Named(NamedKey::Delete | NamedKey::Backspace) => Key::Reset,
+        WinitKey::Named(NamedKey::Escape) => Key::Escape,
+        WinitKey::Character(c) if c.eq_ignore_ascii_case("s") => Key::Settings,
+        WinitKey::Character(c) if c.eq_ignore_ascii_case("q") => Key::Quit,
+        _ => return None,
+    };
+    Some(key)
 }
 
 impl ApplicationHandler for App {
@@ -335,7 +166,9 @@ impl ApplicationHandler for App {
 
     fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
         if let StartCause::ResumeTimeReached { .. } = cause {
-            self.redraw();
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
         }
     }
 
@@ -346,7 +179,7 @@ impl ApplicationHandler for App {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize((size.width, size.height));
                 }
-                self.redraw();
+                self.respond(event_loop, Response::Redraw);
             }
             WindowEvent::RedrawRequested => self.draw(),
             WindowEvent::KeyboardInput {
@@ -359,35 +192,35 @@ impl ApplicationHandler for App {
                     },
                 ..
             } => {
-                if self.menu.is_some() {
-                    self.menu_key(event_loop, logical_key.as_ref(), repeat);
-                } else if !repeat {
-                    self.clock_key(event_loop, logical_key.as_ref());
+                // Fullscreen is the window's business, not the clock's.
+                let fullscreen_key = matches!(logical_key.as_ref(), WinitKey::Named(NamedKey::F11))
+                    || matches!(logical_key.as_ref(), WinitKey::Character(c) if c.eq_ignore_ascii_case("f"));
+                if fullscreen_key && !repeat && !self.clock.is_settings_open() {
+                    self.set_fullscreen(!self.fullscreen);
+                } else if let Some(key) = clock_key(logical_key.as_ref(), repeat) {
+                    let response = self.clock.key(key);
+                    self.respond(event_loop, response);
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor = (position.x as f32, position.y as f32);
-                self.mouse_moved();
+                let response = self.clock.mouse_moved(position.x as f32, position.y as f32);
+                self.respond(event_loop, response);
             }
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: MouseButton::Left,
                 ..
-            } => self.mouse_clicked(event_loop),
+            } => {
+                // The position comes from the last CursorMoved event.
+                let response = self.clock.mouse_pressed_at_cursor();
+                self.respond(event_loop, response);
+            }
             _ => {}
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let next_tick = self
-            .fixed_time
-            .is_none()
-            .then(|| Instant::now() + self.until_next_tick() + TICK_SLACK);
-        let wake = match (self.next_frame, next_tick) {
-            (Some(frame), Some(tick)) => Some(frame.min(tick)),
-            (frame, tick) => frame.or(tick),
-        };
-        event_loop.set_control_flow(match wake {
+        event_loop.set_control_flow(match self.clock.next_frame_at() {
             Some(at) => ControlFlow::WaitUntil(at),
             None => ControlFlow::Wait,
         });

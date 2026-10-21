@@ -1,0 +1,4 @@
+module OpenFlipFFI {
+    header "openflip.h"
+    export *
+}

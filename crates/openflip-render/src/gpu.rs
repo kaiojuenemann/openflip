@@ -121,6 +121,11 @@ impl SurfaceRenderer {
         self.painter.set_font(font);
     }
 
+    /// Name of the graphics adapter, for diagnostics.
+    pub fn adapter_name(&self) -> String {
+        self.gpu.adapter.get_info().name
+    }
+
     pub fn size(&self) -> (u32, u32) {
         (self.config.width, self.config.height)
     }

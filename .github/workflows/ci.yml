@@ -34,6 +34,33 @@ jobs:
       - name: Build release
         run: cargo build --release
 
+  macos-bundles:
+    name: macOS bundles
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build openflip.app and OpenFlip.saver
+        run: platform/macos/build.sh
+      - name: Load and run the screensaver
+        run: OPENFLIP_LOG=1 swift platform/macos/smoke-test.swift target/macos/OpenFlip.saver
+      - name: Render with Metal
+        run: target/macos/openflip.app/Contents/MacOS/openflip --screenshot target/macos/screenshot.png --time 10:42:07
+      - name: Package
+        run: |
+          cp platform/macos/README.md target/macos/INSTALL.md
+          cd target/macos
+          zip -qry openflip-macos.zip OpenFlip.saver openflip.app INSTALL.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openflip-macos
+          path: |
+            target/macos/openflip-macos.zip
+            target/macos/screenshot.png
+
   gpu-tests:
     name: GPU tests (lavapipe)
     runs-on: ubuntu-latest
