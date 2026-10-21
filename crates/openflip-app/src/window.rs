@@ -132,17 +132,10 @@ impl App {
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
         let attributes = match self.mode {
             Mode::Preview(parent) => preview_attributes(parent)?,
-            _ => {
-                let attributes = Window::default_attributes()
-                    .with_title("openflip")
-                    .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
-                    .with_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None)));
-                if let Mode::Screensaver(_) = self.mode {
-                    attributes.with_window_level(WindowLevel::AlwaysOnTop)
-                } else {
-                    attributes
-                }
-            }
+            _ => Window::default_attributes()
+                .with_title("openflip")
+                .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
+                .with_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None))),
         };
         let window = Arc::new(
             event_loop
@@ -165,6 +158,13 @@ impl App {
             self.clock.look().font.clone(),
         ))
         .map_err(|e| e.to_string())?;
+
+        // Raise the screensaver above everything only now: on Windows,
+        // Direct3D refused to create a swap chain for a fullscreen window
+        // that was topmost from the start.
+        if let Mode::Screensaver(_) = self.mode {
+            window.set_window_level(WindowLevel::AlwaysOnTop);
+        }
 
         self.window = Some(window);
         self.renderer = Some(renderer);
