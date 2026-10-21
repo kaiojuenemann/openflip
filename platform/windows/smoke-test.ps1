@@ -8,7 +8,8 @@ param([Parameter(Mandatory)] [string] $Scr)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 $env:RUST_BACKTRACE = '1'
-$env:RUST_LOG = 'warn'
+$env:RUST_LOG = 'warn,openflip=info'
+$failures = [System.Collections.Generic.List[string]]::new()
 $logs = Join-Path ([System.IO.Path]::GetTempPath()) 'openflip-smoke'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
@@ -29,10 +30,10 @@ function Show-Output([string] $Name) {
     }
 }
 
-function Fail([string] $Message, [string] $Name) {
-    if ($Name) { Show-Output $Name }
-    Write-Error "smoke test failed: $Message"
-    exit 1
+# Records a failure and goes on, so one run reports every broken mode.
+function Fail([string] $Message) {
+    Write-Output "FAILED: $Message"
+    $failures.Add($Message)
 }
 
 # Keeps this process's windows responsive while waiting: the preview's
@@ -45,24 +46,29 @@ function Pump([double] $Seconds) {
     }
 }
 
-function Expect-Running([System.Diagnostics.Process] $Process, [string] $What, [string] $Name) {
-    if ($Process.HasExited) { Fail "$What exited early with code $($Process.ExitCode)" $Name }
-    Write-Output "$What is running"
+function Expect-Running([System.Diagnostics.Process] $Process, [string] $What) {
+    if ($Process.HasExited) {
+        Fail "$What exited early with code $($Process.ExitCode)"
+    } else {
+        Write-Output "$What is running"
+    }
+}
+
+function Stop-Openflip([System.Diagnostics.Process] $Process, [string] $Name) {
+    if (-not $Process.HasExited) { Stop-Process -Id $Process.Id }
+    $Process.WaitForExit()
+    Show-Output $Name
 }
 
 $saver = Start-Openflip '/s' 'saver'
 Pump 5
-Expect-Running $saver 'screensaver (/s)' 'saver'
-Stop-Process -Id $saver.Id
-$saver.WaitForExit()
-Show-Output 'saver'
+Expect-Running $saver 'screensaver (/s)'
+Stop-Openflip $saver 'saver'
 
 $settings = Start-Openflip '/c' 'settings'
 Pump 5
-Expect-Running $settings 'settings (/c)' 'settings'
-Stop-Process -Id $settings.Id
-$settings.WaitForExit()
-Show-Output 'settings'
+Expect-Running $settings 'settings (/c)'
+Stop-Openflip $settings 'settings'
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'preview host'
@@ -71,13 +77,18 @@ $form.Show()
 Pump 1
 $preview = Start-Openflip @('/p', $form.Handle.ToInt64()) 'preview'
 Pump 5
-Expect-Running $preview 'preview (/p)' 'preview'
+Expect-Running $preview 'preview (/p)'
 $form.Close()
 Pump 5
-if (-not $preview.HasExited) {
-    Stop-Process -Id $preview.Id
-    Fail 'preview kept running after its window closed' 'preview'
+if ($preview.HasExited) {
+    Write-Output 'preview ended with its window'
+} else {
+    Fail 'preview kept running after its window closed'
 }
-Show-Output 'preview'
-Write-Output 'preview ended with its window'
+Stop-Openflip $preview 'preview'
+
+if ($failures.Count -gt 0) {
+    Write-Error "smoke test failed: $($failures -join '; ')"
+    exit 1
+}
 Write-Output 'OK'

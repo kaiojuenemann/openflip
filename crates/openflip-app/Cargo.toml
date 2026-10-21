@@ -17,6 +17,7 @@ openflip-render.workspace = true
 openflip-host.workspace = true
 chrono.workspace = true
 env_logger.workspace = true
+log.workspace = true
 png.workspace = true
 pollster.workspace = true
 rfd.workspace = true

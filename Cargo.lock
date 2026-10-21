@@ -1374,6 +1374,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "env_logger",
+ "log",
  "openflip-core",
  "openflip-host",
  "openflip-render",

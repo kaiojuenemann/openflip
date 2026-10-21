@@ -268,6 +268,7 @@ impl ApplicationHandler for App {
                     _ => false,
                 };
                 if user_input {
+                    log::info!("screensaver ends on {event:?}");
                     return event_loop.exit();
                 }
             }
