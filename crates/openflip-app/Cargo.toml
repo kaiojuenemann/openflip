@@ -17,5 +17,6 @@ openflip-render.workspace = true
 chrono.workspace = true
 png.workspace = true
 pollster.workspace = true
+rfd.workspace = true
 wgpu.workspace = true
 winit.workspace = true

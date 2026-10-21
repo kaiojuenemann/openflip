@@ -117,6 +117,10 @@ impl SurfaceRenderer {
         })
     }
 
+    pub fn set_font(&mut self, font: Font) {
+        self.painter.set_font(font);
+    }
+
     pub fn size(&self) -> (u32, u32) {
         (self.config.width, self.config.height)
     }

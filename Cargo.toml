@@ -21,3 +21,4 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 wgpu = "30"
 winit = "0.30"
+rfd = "0.17"

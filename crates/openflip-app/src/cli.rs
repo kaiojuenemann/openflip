@@ -9,6 +9,7 @@ Usage: openflip [OPTIONS]
 
 Options:
   --windowed            Start in a window instead of fullscreen
+  --settings            Open the settings in a window; closing them quits
   --screenshot <FILE>   Render one frame to a PNG file and exit
   --size <WxH>          Image size for --screenshot (default 1920x1080)
   --time <TIME>         Show a fixed time, e.g. 10:42 or 2026-10-20T10:42:07
@@ -16,11 +17,12 @@ Options:
                         this point (0 = start, 0.5 = flap edge-on)
   -h, --help            Print this help
 
-Keys: F or F11 toggles fullscreen, Esc or Q quits.";
+Keys: S opens the settings, F or F11 toggles fullscreen, Esc or Q quits.";
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Options {
     pub windowed: bool,
+    pub settings: bool,
     pub screenshot: Option<PathBuf>,
     pub size: Option<(u32, u32)>,
     pub time: Option<NaiveDateTime>,
@@ -35,6 +37,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
         let mut value = |name: &str| args.next().ok_or_else(|| format!("{name} needs a value"));
         match arg.as_str() {
             "--windowed" => options.windowed = true,
+            "--settings" => options.settings = true,
             "--screenshot" => options.screenshot = Some(value("--screenshot")?.into()),
             "--size" => options.size = Some(parse_size(&value("--size")?)?),
             "--time" => options.time = Some(parse_time(&value("--time")?)?),

@@ -18,6 +18,7 @@ mod atlas;
 mod font;
 mod gpu;
 pub mod layout;
+pub mod overlay;
 mod painter;
 mod scene;
 mod theme;

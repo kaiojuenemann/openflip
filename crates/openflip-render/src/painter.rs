@@ -133,6 +133,12 @@ impl Painter {
         }
     }
 
+    /// Replaces the font for all following frames.
+    pub fn set_font(&mut self, font: Font) {
+        self.font = font;
+        self.atlas.clear();
+    }
+
     /// Clears `target` to the scene background and draws the scene on top.
     pub fn paint(
         &mut self,
