@@ -183,6 +183,7 @@ fn face(card: CardBox, content: &CardContent, theme: &Theme) -> Vec<Item> {
             height: card.height,
             radius: card.width * CORNER_RADIUS,
             color: theme.card,
+            texture: theme.card_texture,
         }),
         Item::Text(Text {
             content: content.digits.clone(),
@@ -224,6 +225,7 @@ fn split_line(card: CardBox, theme: &Theme) -> Group {
             height: split,
             radius: 0.0,
             color: theme.background,
+            texture: 0.0,
         })],
     }
 }

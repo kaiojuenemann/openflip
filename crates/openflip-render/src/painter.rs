@@ -35,7 +35,7 @@ impl Painter {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -259,8 +259,8 @@ impl Painter {
             rect.y,
             rect.width,
             rect.height,
-            0.0,
-            0.0,
+            rect.texture,
+            if self.linear_target { 1.0 } else { 0.0 },
             0.0,
             0.0,
             c.r,

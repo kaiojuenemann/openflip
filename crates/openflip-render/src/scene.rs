@@ -48,6 +48,9 @@ pub struct Rect {
     pub height: f32,
     pub radius: f32,
     pub color: Color,
+    /// Strength of a felt-like surface texture; `0.0` is a flat fill. The
+    /// texture moves with the rectangle, also when it is folded.
+    pub texture: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

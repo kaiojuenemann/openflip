@@ -10,6 +10,8 @@ pub struct Theme {
     pub digits: Color,
     /// AM/PM marker and date line.
     pub secondary: Color,
+    /// Strength of the cards' surface texture; `0.0` for flat cards.
+    pub card_texture: f32,
 }
 
 impl Theme {
@@ -18,7 +20,7 @@ impl Theme {
 
     pub fn by_name(name: &str) -> Option<Self> {
         let (background, card, digits, secondary) = match name {
-            "classic" => (0x000000, 0x1a1a1a, 0xb8b8b8, 0x8c8c8c),
+            "classic" => (0x000000, 0x0e0e0e, 0xb8b8b8, 0x8c8c8c),
             "light" => (0xdadada, 0xf7f7f7, 0x262626, 0x5c5c5c),
             "amber" => (0x000000, 0x17130e, 0xffb000, 0xb87f00),
             "midnight" => (0x0a0f1e, 0x18213b, 0xc9d4f6, 0x7f8cb5),
@@ -31,6 +33,7 @@ impl Theme {
             card: Color::hex(card),
             digits: Color::hex(digits),
             secondary: Color::hex(secondary),
+            card_texture: 1.0,
         })
     }
 
