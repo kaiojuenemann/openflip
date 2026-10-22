@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use openflip_host::{Clock, Key, Response};
+use openflip_host::{Clock, FlapSound, Key, Response};
 use openflip_render::{Gpu, SurfaceRenderer};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent};
@@ -58,6 +58,7 @@ pub fn run(
         },
         mode,
         views: Vec::new(),
+        sound: FlapSound::new(),
         error: None,
     };
     event_loop.run_app(&mut app)?;
@@ -76,6 +77,7 @@ struct App {
     /// The app and embedded modes have one window; the screensaver has one
     /// per display.
     views: Vec<View>,
+    sound: FlapSound,
     error: Option<String>,
 }
 
@@ -154,6 +156,10 @@ impl App {
         if !self.views[index].renderer.render(&frame.scene) {
             self.clock.frame_not_shown();
         }
+        // XScreenSaver runs one copy per display; only the one on the
+        // primary display makes a sound.
+        let audible = self.clock.look().config.sound && self.views.iter().any(|v| v.primary);
+        self.sound.update(audible, frame.flap_sounds);
     }
 
     fn create_windows(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {

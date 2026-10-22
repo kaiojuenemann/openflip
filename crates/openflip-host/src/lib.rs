@@ -9,6 +9,8 @@
 mod clock;
 mod look;
 pub mod menu;
+mod sound;
 
 pub use clock::{Clock, Frame, Key, Response};
 pub use look::{load_config, Look};
+pub use sound::FlapSound;

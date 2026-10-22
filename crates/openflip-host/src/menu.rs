@@ -171,10 +171,17 @@ mod tests {
     fn clicks_select_and_step() {
         let mut menu = SettingsMenu::default();
         let mut config = Config::default();
-        assert_eq!(menu.click(3, false, &mut config), MenuAction::ConfigChanged);
+        let theme = Setting::ALL
+            .iter()
+            .position(|s| *s == Setting::Theme)
+            .unwrap();
+        assert_eq!(
+            menu.click(theme, false, &mut config),
+            MenuAction::ConfigChanged
+        );
         assert_eq!(menu.setting(), Setting::Theme);
         assert_eq!(config.theme, "light");
-        menu.click(3, true, &mut config);
+        menu.click(theme, true, &mut config);
         assert_eq!(config.theme, "classic");
         assert_eq!(menu.click(99, false, &mut config), MenuAction::Nothing);
     }

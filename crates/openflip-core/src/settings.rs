@@ -12,6 +12,7 @@ pub enum Setting {
     TimeFormat,
     Seconds,
     Date,
+    Sound,
     Theme,
     Size,
     Font,
@@ -21,10 +22,11 @@ pub enum Setting {
 
 impl Setting {
     /// All settings, in the order they are listed.
-    pub const ALL: [Setting; 8] = [
+    pub const ALL: [Setting; 9] = [
         Setting::TimeFormat,
         Setting::Seconds,
         Setting::Date,
+        Setting::Sound,
         Setting::Theme,
         Setting::Size,
         Setting::Font,
@@ -37,6 +39,7 @@ impl Setting {
             Self::TimeFormat => Text::TimeFormat,
             Self::Seconds => Text::Seconds,
             Self::Date => Text::Date,
+            Self::Sound => Text::Sound,
             Self::Theme => Text::Theme,
             Self::Size => Text::Size,
             Self::Font => Text::Font,
@@ -62,6 +65,7 @@ impl Setting {
                 .to_string(),
             Self::Seconds => on_off(config.show_seconds),
             Self::Date => on_off(config.show_date),
+            Self::Sound => on_off(config.sound),
             Self::Theme => language.theme_name(&config.theme),
             Self::Size => format!("{} %", (config.scale * 100.0).round()),
             Self::Font => match &config.font {
@@ -101,6 +105,7 @@ impl Setting {
             }
             Self::Seconds => config.show_seconds = !config.show_seconds,
             Self::Date => config.show_date = !config.show_date,
+            Self::Sound => config.sound = !config.sound,
             Self::Theme => {
                 let current = THEMES.iter().position(|t| *t == config.theme);
                 config.theme = cycle(&THEMES, current, forward).to_string();

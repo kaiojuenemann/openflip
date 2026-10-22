@@ -12,3 +12,5 @@ openflip-core.workspace = true
 openflip-render.workspace = true
 chrono.workspace = true
 sys-locale.workspace = true
+rodio.workspace = true
+log.workspace = true

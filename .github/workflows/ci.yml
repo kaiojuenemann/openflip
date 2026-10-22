@@ -34,6 +34,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install ALSA headers (sound)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
@@ -117,7 +120,7 @@ jobs:
         # libxkbcommon-x11 comes with every desktop, but not with the runner.
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xdotool mesa-vulkan-drivers libxkbcommon-x11-0 xscreensaver
+          sudo apt-get install -y xvfb xdotool mesa-vulkan-drivers libxkbcommon-x11-0 xscreensaver libasound2-dev
       - name: Build
         run: cargo build --release --locked -p openflip-app
       - name: Run as app, screensaver, embedded and XScreenSaver hack
@@ -141,7 +144,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install software Vulkan driver
-        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libasound2-dev
       - name: Render tests
         run: cargo test -- --ignored
       - name: Render screenshot

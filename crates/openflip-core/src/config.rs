@@ -37,6 +37,8 @@ pub struct Config {
     pub time_format: TimeFormat,
     pub show_seconds: bool,
     pub show_date: bool,
+    /// Play a flap sound whenever a card flips.
+    pub sound: bool,
     /// Name of a built-in theme, e.g. `classic`.
     pub theme: String,
     /// Size of the clock relative to the screen; `1.0` fills the width.
@@ -54,6 +56,9 @@ impl Default for Config {
             time_format: TimeFormat::H24,
             show_seconds: false,
             show_date: false,
+            // Off unless asked for: a screensaver should not make noise in
+            // a shared office or at night.
+            sound: false,
             theme: "classic".into(),
             scale: 0.9,
             font: None,
