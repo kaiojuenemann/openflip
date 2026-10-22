@@ -89,7 +89,8 @@ fn vs_main(@builtin(vertex_index) index: u32, instance: Instance) -> VertexOutpu
     return out;
 }
 
-// Felt texture: fine grain and soft clouds, in sRGB units around zero. `p` is a position on the rectangle at rest, so the
+// Felt texture: fine grain with a hint of unevenness, in sRGB units around
+// zero. `p` is a position on the rectangle at rest, so the
 // pattern sticks to it while it folds; `scale` follows its size so the felt
 // looks the same at any resolution.
 
@@ -112,15 +113,16 @@ fn value_noise(p: vec2<f32>) -> f32 {
 
 fn felt(p: vec2<f32>, scale: f32) -> f32 {
     let grain = hash(floor(p)) - 0.5;
-    let clouds = value_noise(p / (scale * 0.12)) * 0.6 + value_noise(p / (scale * 0.04)) * 0.4 - 0.5;
-    return grain * 0.02 + clouds * 0.022;
+    let coarse = value_noise(p / 2.5) - 0.5;
+    let unevenness = value_noise(p / (scale * 0.05)) - 0.5;
+    return grain * 0.03 + coarse * 0.016 + unevenness * 0.006;
 }
 
 // A soft light facing the screen: brightest in the middle of the screen,
 // fading out gently towards the edges.
 fn light(p: vec2<f32>) -> f32 {
     let centre = globals.viewport * 0.5;
-    let reach = max(globals.viewport.x, globals.viewport.y) * 0.55;
+    let reach = max(globals.viewport.x, globals.viewport.y) * 0.4;
     let d = length(p - centre) / reach;
     return exp(-d * d);
 }
@@ -168,7 +170,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // The light brightens the card and, more so, brings out its felt.
         let p = in.surface.xy + in.local;
         let lit = texture * light(p);
-        srgb = srgb * (1.0 + 0.5 * lit) + vec3<f32>(texture * (1.0 + 1.5 * lit) * felt(p, in.size.y));
+        srgb = srgb * (1.0 + 1.0 * lit) + vec3<f32>(texture * (1.0 + 1.5 * lit) * felt(p, in.size.y));
         color = select(srgb, srgb_to_linear(srgb), linear);
     }
     return vec4<f32>(color * tint, in.color.a * alpha);
