@@ -19,6 +19,8 @@ const MIN_FRAME_TIME: Duration = Duration::from_micros(1_000_000 / 120);
 /// How often the config file is checked for changes made elsewhere, e.g.
 /// by hand or by the settings of another openflip instance.
 const RELOAD_INTERVAL: Duration = Duration::from_secs(1);
+/// How soon to try again when a frame could not be shown.
+const RETRY_DELAY: Duration = Duration::from_millis(50);
 
 /// Keys the clock reacts to; hosts map their platform's key events to these.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,6 +212,14 @@ impl Clock {
         self.redraw()
     }
 
+    /// Tells the clock that the last frame did not reach the screen (see
+    /// `SurfaceRenderer::render`), so another one is due shortly. Otherwise
+    /// the screen would stay empty until the clock face next changes.
+    pub fn frame_not_shown(&mut self) {
+        let retry = Instant::now() + RETRY_DELAY;
+        self.next_due = Some(self.next_due.map_or(retry, |due| due.min(retry)));
+    }
+
     /// Whether a frame should be drawn at `now`; for hosts that are called
     /// periodically, like screensavers.
     pub fn needs_frame(&self, now: Instant) -> bool {
@@ -398,6 +408,23 @@ mod tests {
     fn bundled_font_file() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../openflip-render/assets/InterDisplay-Bold.otf")
+    }
+
+    #[test]
+    fn a_frame_that_was_not_shown_is_retried_soon() {
+        let mut clock = Clock::new(None).fixed_time(time());
+        clock.frame(SIZE);
+        assert_eq!(
+            clock.next_frame_at(),
+            None,
+            "a frozen clock waits for input"
+        );
+
+        clock.frame_not_shown();
+        let retry = clock.next_frame_at().expect("a retry is scheduled");
+        assert!(retry <= Instant::now() + RETRY_DELAY);
+        assert!(!clock.needs_frame(Instant::now()));
+        assert!(clock.needs_frame(retry));
     }
 
     #[test]
