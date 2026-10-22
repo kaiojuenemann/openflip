@@ -16,6 +16,7 @@ Options:
   --time <TIME>         Show a fixed time, e.g. 10:42 or 2026-10-20T10:42:07
   --progress <0..1>     For --screenshot: freeze the flip into --time at
                         this point (0 = start, 0.5 = flap edge-on)
+  --screensaver         Run as screensaver: fullscreen, quit on any input
   -h, --help            Print this help
 
 As a Windows screensaver (openflip.scr), it also understands:
@@ -23,7 +24,21 @@ As a Windows screensaver (openflip.scr), it also understands:
   /p <HWND>             Draw the preview into the settings dialog's window
   /c                    Open the settings
 
+As an XScreenSaver hack on Linux (X11):
+  -root                 Draw into XScreenSaver's window ($XSCREENSAVER_WINDOW)
+                        or, without it, onto the root window
+  -window-id <ID>       Draw into the X window ID (decimal or 0x hex)
+
 Keys: S opens the settings, F or F11 toggles fullscreen, Esc or Q quits.";
+
+/// A foreign window the clock draws into, filling it with a child window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Embed {
+    /// A native window handle: a Windows `HWND` or an X11 window ID.
+    Window(u64),
+    /// XScreenSaver's window from `$XSCREENSAVER_WINDOW`, or the X root window.
+    XScreenSaverRoot,
+}
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Options {
@@ -31,8 +46,8 @@ pub struct Options {
     pub settings: bool,
     /// Run as a screensaver: fullscreen, quit on any input.
     pub screensaver: bool,
-    /// Draw a small preview into this native parent window.
-    pub preview: Option<u64>,
+    /// Draw into a window that belongs to someone else.
+    pub embed: Option<Embed>,
     pub screenshot: Option<PathBuf>,
     pub size: Option<(u32, u32)>,
     pub time: Option<NaiveDateTime>,
@@ -52,6 +67,11 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
         match arg.as_str() {
             "--fullscreen" => options.windowed = false,
             "--windowed" => options.windowed = true,
+            "--screensaver" => options.screensaver = true,
+            "-root" | "--root" => options.embed = Some(Embed::XScreenSaverRoot),
+            "-window-id" | "--window-id" => {
+                options.embed = Some(Embed::Window(parse_window_id(&value("-window-id")?)?))
+            }
             "--settings" => options.settings = true,
             "--screenshot" => options.screenshot = Some(value("--screenshot")?.into()),
             "--size" => options.size = Some(parse_size(&value("--size")?)?),
@@ -97,7 +117,7 @@ fn parse_screensaver_args(args: &[String]) -> Option<Result<Options, String>> {
                 .filter(|h| *h != 0);
             match handle {
                 Some(handle) => Options {
-                    preview: Some(handle),
+                    embed: Some(Embed::Window(handle)),
                     ..Options::default()
                 },
                 None => return Some(Err(format!("{first} needs a window handle"))),
@@ -106,6 +126,18 @@ fn parse_screensaver_args(args: &[String]) -> Option<Result<Options, String>> {
         _ => return None,
     };
     Some(Ok(options))
+}
+
+/// An X11 window ID as XScreenSaver writes it: `0x1a00007` or decimal.
+pub fn parse_window_id(text: &str) -> Result<u64, String> {
+    let text = text.trim();
+    let id = match text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        Some(hex) => u64::from_str_radix(hex, 16),
+        None => text.parse(),
+    };
+    id.ok()
+        .filter(|id| *id != 0)
+        .ok_or_else(|| format!("invalid window id '{text}'"))
 }
 
 fn parse_size(text: &str) -> Result<(u32, u32), String> {
@@ -180,8 +212,14 @@ mod tests {
         assert!(parse(args(&["/S"])).unwrap().screensaver);
         assert!(parse(args(&["-s"])).unwrap().screensaver);
 
-        assert_eq!(parse(args(&["/p", "1234"])).unwrap().preview, Some(1234));
-        assert_eq!(parse(args(&["/P:5678"])).unwrap().preview, Some(5678));
+        assert_eq!(
+            parse(args(&["/p", "1234"])).unwrap().embed,
+            Some(Embed::Window(1234))
+        );
+        assert_eq!(
+            parse(args(&["/P:5678"])).unwrap().embed,
+            Some(Embed::Window(5678))
+        );
 
         assert!(parse(args(&["/c"])).unwrap().settings);
         assert!(parse(args(&["/c:4321"])).unwrap().settings);
@@ -201,6 +239,25 @@ mod tests {
                 .unwrap()
                 .windowed
         );
+    }
+
+    #[test]
+    fn understands_xscreensaver_arguments() {
+        assert_eq!(
+            parse(args(&["-root"])).unwrap().embed,
+            Some(Embed::XScreenSaverRoot)
+        );
+        assert_eq!(
+            parse(args(&["-window-id", "0x1a00007"])).unwrap().embed,
+            Some(Embed::Window(0x1a00007))
+        );
+        assert_eq!(
+            parse(args(&["--window-id", "27262983"])).unwrap().embed,
+            Some(Embed::Window(27262983))
+        );
+        assert!(parse(args(&["-window-id", "0x"])).is_err());
+        assert!(parse(args(&["-window-id"])).is_err());
+        assert!(parse(args(&["--screensaver"])).unwrap().screensaver);
     }
 
     #[test]

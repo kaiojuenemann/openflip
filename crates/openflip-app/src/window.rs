@@ -1,5 +1,6 @@
-//! The clock in a window: as an app, as a screensaver, or as the small
-//! preview inside the Windows screensaver settings.
+//! The clock in a window: as an app, as a screensaver, or embedded in a
+//! window that belongs to someone else (the preview in the Windows
+//! screensaver settings, or XScreenSaver's window on Linux).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,7 +14,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHan
 use winit::keyboard::{Key as WinitKey, NamedKey};
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId, WindowLevel};
 
-use crate::cli::Options;
+use crate::cli::{Embed, Options};
 use crate::screensaver::{ExitOnInput, Input};
 
 enum Mode {
@@ -21,16 +22,16 @@ enum Mode {
     App,
     /// Fullscreen on top of everything; any input ends it.
     Screensaver(ExitOnInput),
-    /// Drawn into a native parent window, e.g. the preview in the Windows
-    /// screensaver settings. Ignores input and ends with its parent.
-    Preview(u64),
+    /// Drawn into a foreign parent window. Ignores input (the owner
+    /// handles it) and ends with its parent.
+    Embedded(Embed),
 }
 
 pub fn run(
     config_path: Option<PathBuf>,
     options: &Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let event_loop = EventLoop::new()?;
+    let event_loop = event_loop(options.embed.is_some())?;
     let mut clock = Clock::new(config_path);
     if options.settings {
         clock = clock.settings_only();
@@ -38,8 +39,8 @@ pub fn run(
     if let Some(time) = options.time {
         clock = clock.fixed_time(time);
     }
-    let mode = match options.preview {
-        Some(parent) => Mode::Preview(parent),
+    let mode = match options.embed {
+        Some(embed) => Mode::Embedded(embed),
         None if options.screensaver => Mode::Screensaver(ExitOnInput::new(Instant::now())),
         None => Mode::App,
     };
@@ -51,7 +52,7 @@ pub fn run(
         fullscreen: match mode {
             Mode::App => !options.windowed && !options.settings,
             Mode::Screensaver(_) => true,
-            Mode::Preview(_) => false,
+            Mode::Embedded(_) => false,
         },
         mode,
         window: None,
@@ -82,7 +83,7 @@ impl App {
             let visible = match self.mode {
                 Mode::App => !self.fullscreen || self.clock.is_settings_open(),
                 Mode::Screensaver(_) => false,
-                Mode::Preview(_) => true,
+                Mode::Embedded(_) => true,
             };
             window.set_cursor_visible(visible);
         }
@@ -131,7 +132,7 @@ impl App {
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
         let attributes = match self.mode {
-            Mode::Preview(parent) => preview_attributes(parent)?,
+            Mode::Embedded(embed) => embed_attributes(embed)?,
             _ => Window::default_attributes()
                 .with_title("openflip")
                 .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
@@ -173,13 +174,43 @@ impl App {
     }
 }
 
-/// A borderless child window filling the parent's client area.
+/// On Linux, embedding means X11 (XScreenSaver), so don't let winit pick
+/// Wayland just because it is available.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn event_loop(embed: bool) -> Result<EventLoop<()>, winit::error::EventLoopError> {
+    use winit::platform::x11::EventLoopBuilderExtX11;
+    let mut builder = EventLoop::builder();
+    if embed {
+        builder.with_x11();
+    }
+    builder.build()
+}
+
+#[cfg(not(all(unix, not(target_os = "macos"))))]
+fn event_loop(_embed: bool) -> Result<EventLoop<()>, winit::error::EventLoopError> {
+    EventLoop::new()
+}
+
+/// A borderless child window filling `size` pixels of its parent.
+#[cfg(any(windows, all(unix, not(target_os = "macos"))))]
+fn child_attributes(size: (u32, u32)) -> WindowAttributes {
+    Window::default_attributes()
+        .with_title("openflip")
+        .with_decorations(false)
+        .with_position(winit::dpi::PhysicalPosition::new(0, 0))
+        .with_inner_size(winit::dpi::PhysicalSize::new(size.0.max(1), size.1.max(1)))
+}
+
+/// A child of the window Windows handed us for the screensaver preview.
 #[cfg(windows)]
-fn preview_attributes(parent: u64) -> Result<WindowAttributes, String> {
+fn embed_attributes(embed: Embed) -> Result<WindowAttributes, String> {
     use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
     use windows_sys::Win32::Foundation::{HWND, RECT};
     use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
 
+    let Embed::Window(parent) = embed else {
+        return Err("-root is for XScreenSaver on Linux; use /s on Windows".into());
+    };
     let handle = std::num::NonZeroIsize::new(parent as isize).ok_or("invalid window handle")?;
     let mut rect = RECT {
         left: 0,
@@ -191,25 +222,58 @@ fn preview_attributes(parent: u64) -> Result<WindowAttributes, String> {
     if unsafe { GetClientRect(parent as usize as HWND, &mut rect) } == 0 {
         return Err(format!("no window with handle {parent}"));
     }
-    let size = winit::dpi::PhysicalSize::new(
+    let size = (
         (rect.right - rect.left).max(1) as u32,
         (rect.bottom - rect.top).max(1) as u32,
     );
-    let attributes = Window::default_attributes()
-        .with_title("openflip preview")
-        .with_decorations(false)
-        .with_position(winit::dpi::PhysicalPosition::new(0, 0))
-        .with_inner_size(size);
     // SAFETY: Windows handed us this window for the preview. Our window is
     // its child, so it is destroyed with the parent and never outlives it.
     Ok(unsafe {
-        attributes.with_parent_window(Some(RawWindowHandle::Win32(Win32WindowHandle::new(handle))))
+        child_attributes(size)
+            .with_parent_window(Some(RawWindowHandle::Win32(Win32WindowHandle::new(handle))))
     })
 }
 
-#[cfg(not(windows))]
-fn preview_attributes(_parent: u64) -> Result<WindowAttributes, String> {
-    Err("the screensaver preview (/p) is only available on Windows".into())
+/// A child of the X window XScreenSaver gave us, or of the root window.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn embed_attributes(embed: Embed) -> Result<WindowAttributes, String> {
+    use raw_window_handle::{RawWindowHandle, XlibWindowHandle};
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::ConnectionExt;
+
+    let (connection, screen) =
+        x11rb::connect(None).map_err(|e| format!("cannot connect to the X server: {e}"))?;
+    let parent: u32 = match embed {
+        Embed::Window(id) => {
+            u32::try_from(id).map_err(|_| format!("invalid X window id {id:#x}"))?
+        }
+        Embed::XScreenSaverRoot => match std::env::var("XSCREENSAVER_WINDOW") {
+            Ok(id) => {
+                let id = crate::cli::parse_window_id(&id)?;
+                u32::try_from(id).map_err(|_| format!("invalid X window id {id:#x}"))?
+            }
+            Err(_) => connection.setup().roots[screen].root,
+        },
+    };
+    let geometry = connection
+        .get_geometry(parent)
+        .map_err(|e| e.to_string())?
+        .reply()
+        .map_err(|_| format!("no X window {parent:#x}"))?;
+    let size = (u32::from(geometry.width), u32::from(geometry.height));
+    log::info!("drawing into X window {parent:#x} ({}x{})", size.0, size.1);
+    // SAFETY: our window is a child of `parent`, so the X server destroys it
+    // together with the parent; it never outlives it.
+    Ok(unsafe {
+        child_attributes(size).with_parent_window(Some(RawWindowHandle::Xlib(
+            XlibWindowHandle::new(std::ffi::c_ulong::from(parent)),
+        )))
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn embed_attributes(_embed: Embed) -> Result<WindowAttributes, String> {
+    Err("embedding (/p, -root, -window-id) is not available on macOS; use OpenFlip.saver".into())
 }
 
 /// Maps a key press to the clock's keys. Arrow keys repeat while held;
@@ -277,7 +341,7 @@ impl ApplicationHandler for App {
                     return event_loop.exit();
                 }
             }
-            Mode::Preview(_) => match event {
+            Mode::Embedded(_) => match event {
                 WindowEvent::KeyboardInput { .. }
                 | WindowEvent::MouseInput { .. }
                 | WindowEvent::MouseWheel { .. }

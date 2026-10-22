@@ -92,6 +92,32 @@ jobs:
             target/windows/openflip-windows.zip
             target/windows/screenshot.png
 
+  linux-package:
+    name: Linux package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install X server, software Vulkan and XScreenSaver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xdotool mesa-vulkan-drivers xscreensaver
+      - name: Build
+        run: cargo build --release --locked -p openflip-app
+      - name: Run as app, screensaver, embedded and XScreenSaver hack
+        run: platform/linux/smoke-test.sh target/release/openflip
+      - name: Package
+        run: |
+          mkdir -p target/linux
+          cp target/release/openflip platform/linux/openflip.xml target/linux/
+          cp platform/linux/README.md target/linux/INSTALL.md
+          tar czf target/openflip-linux-x86_64.tar.gz -C target/linux .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openflip-linux
+          path: target/openflip-linux-x86_64.tar.gz
+
   gpu-tests:
     name: GPU tests (lavapipe)
     runs-on: ubuntu-latest
