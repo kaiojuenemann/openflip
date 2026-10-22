@@ -4,7 +4,7 @@ use ab_glyph::{Font as _, PxScale, ScaleFont as _};
 
 use crate::atlas::{Atlas, AtlasFull};
 use crate::font::Font;
-use crate::scene::{Color, Fold, HAlign, Half, Item, Rect, Scene, Text};
+use crate::scene::{Color, Fold, HAlign, Half, Item, Rect, Scene, Text, VAlign};
 
 /// Floats per instance: rect (4), atlas rect (4), colour (4), params (2),
 /// fold (8).
@@ -280,17 +280,22 @@ impl Painter {
         fold: &[f32; 8],
         data: &mut Vec<f32>,
     ) -> Result<(), AtlasFull> {
-        let font = self.font.0.as_scaled(PxScale::from(text.size));
+        let font = self.font.data.as_scaled(PxScale::from(text.size));
         let glyphs: Vec<_> = text.content.chars().map(|c| font.glyph_id(c)).collect();
 
-        // Centre vertically on the ink of the digit zero, so every text with
-        // the same size shares a baseline regardless of its content.
-        let zero = font.glyph_id('0').with_scale(text.size);
-        let (ink_top, ink_bottom) = font
-            .outline_glyph(zero)
-            .map(|o| (o.px_bounds().min.y, o.px_bounds().max.y))
-            .unwrap_or((-font.ascent(), 0.0));
-        let baseline = (text.y - (ink_top + ink_bottom) / 2.0).round();
+        let baseline = match (text.valign, self.font.waist) {
+            (VAlign::Waist, Some(waist)) => text.y + waist * text.size,
+            _ => {
+                // The middle of the ink of the digit zero.
+                let zero = font.glyph_id('0').with_scale(text.size);
+                let (ink_top, ink_bottom) = font
+                    .outline_glyph(zero)
+                    .map(|o| (o.px_bounds().min.y, o.px_bounds().max.y))
+                    .unwrap_or((-font.ascent(), 0.0));
+                text.y - (ink_top + ink_bottom) / 2.0
+            }
+        }
+        .round();
 
         // Pen positions for each glyph.
         let mut pens = Vec::with_capacity(glyphs.len());

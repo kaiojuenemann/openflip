@@ -9,7 +9,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use openflip_core::DateLine;
 
 use crate::animation::{flip_angle, CardContent, CardFlip};
-use crate::scene::{Fold, Group, HAlign, Half, Item, Rect, Scene, Text};
+use crate::scene::{Fold, Group, HAlign, Half, Item, Rect, Scene, Text, VAlign};
 use crate::theme::Theme;
 
 /// Card height relative to its width.
@@ -111,6 +111,7 @@ pub fn build_scene(
                 x: width as f32 / 2.0,
                 y: top + card_h + card_h * DATE_GAP + size / 2.0,
                 align: HAlign::Center,
+                valign: VAlign::Middle,
                 slot_width: None,
             })],
         });
@@ -190,6 +191,7 @@ fn face(card: CardBox, content: &CardContent, theme: &Theme) -> Vec<Item> {
             x: card.center_x(),
             y: card.hinge_y(),
             align: HAlign::Center,
+            valign: VAlign::Waist,
             slot_width: Some(card.width * DIGIT_SLOT),
         }),
     ];
@@ -203,6 +205,7 @@ fn face(card: CardBox, content: &CardContent, theme: &Theme) -> Vec<Item> {
             x: card.x + inset,
             y: card.y + inset + size / 2.0,
             align: HAlign::Left,
+            valign: VAlign::Middle,
             slot_width: None,
         }));
     }

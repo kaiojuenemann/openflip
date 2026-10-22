@@ -4,7 +4,7 @@
 //! [`OverlayView`] into scene groups and reports where each row sits, so the
 //! app can hit-test mouse clicks.
 
-use crate::scene::{Color, Group, HAlign, Item, Rect, Text};
+use crate::scene::{Color, Group, HAlign, Item, Rect, Text, VAlign};
 use crate::theme::Theme;
 
 /// What the panel shows; the app fills it from its settings.
@@ -109,6 +109,7 @@ pub fn build_overlay(
             x: panel_x + pad,
             y: panel_y + row_h * 0.8,
             align: HAlign::Left,
+            valign: VAlign::Middle,
             slot_width: None,
         }),
     ];
@@ -148,6 +149,7 @@ pub fn build_overlay(
             x: inner_x + pad * 0.5,
             y: middle,
             align: HAlign::Left,
+            valign: VAlign::Middle,
             slot_width: None,
         }));
         let arrow_color = if i == view.selected {
@@ -166,6 +168,7 @@ pub fn build_overlay(
                 x,
                 y: middle,
                 align: HAlign::Center,
+                valign: VAlign::Middle,
                 slot_width: None,
             }));
         }
@@ -176,6 +179,7 @@ pub fn build_overlay(
             x: value_x + value_w / 2.0,
             y: middle,
             align: HAlign::Center,
+            valign: VAlign::Middle,
             slot_width: None,
         }));
         rows.push(area);
@@ -190,6 +194,7 @@ pub fn build_overlay(
             x: panel_x + panel_w / 2.0,
             y: hint_y - row_h * 0.5,
             align: HAlign::Center,
+            valign: VAlign::Middle,
             slot_width: None,
         }));
     }
@@ -200,6 +205,7 @@ pub fn build_overlay(
         x: panel_x + panel_w / 2.0,
         y: hint_y,
         align: HAlign::Center,
+        valign: VAlign::Middle,
         slot_width: None,
     }));
 

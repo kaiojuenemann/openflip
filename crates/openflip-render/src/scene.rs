@@ -56,7 +56,18 @@ pub enum HAlign {
     Center,
 }
 
-/// A run of text, vertically centred on `y` using the height of the digits.
+/// What lies on a text's `y`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VAlign {
+    /// The middle of the digits' height, so every text with the same size
+    /// shares a baseline regardless of its content.
+    Middle,
+    /// The waist of the 8, where its bowls meet; digits on a flip card sit
+    /// so that the split line runs through it. Falls back to `Middle`.
+    Waist,
+}
+
+/// A run of text, placed vertically on `y` as [`VAlign`] says.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Text {
     pub content: String,
@@ -66,6 +77,7 @@ pub struct Text {
     pub x: f32,
     pub y: f32,
     pub align: HAlign,
+    pub valign: VAlign,
     /// When set, every character is centred in a slot of this width, so
     /// digits do not shift sideways as they change.
     pub slot_width: Option<f32>,
