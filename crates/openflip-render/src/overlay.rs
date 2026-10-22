@@ -93,6 +93,7 @@ pub fn build_overlay(
             height: h,
             radius: 0.0,
             color: with_alpha(theme.background, BACKDROP_ALPHA),
+            texture: 0.0,
         }),
         Item::Rect(Rect {
             x: panel_x,
@@ -101,6 +102,7 @@ pub fn build_overlay(
             height: panel_h,
             radius: row_h * 0.35,
             color: theme.card,
+            texture: 0.0,
         }),
         Item::Text(Text {
             content: view.title.clone(),
@@ -140,6 +142,7 @@ pub fn build_overlay(
                 height: row_h * 0.88,
                 radius: row_h * 0.2,
                 color: with_alpha(theme.digits, 0.12),
+                texture: 0.0,
             }));
         }
         items.push(Item::Text(Text {

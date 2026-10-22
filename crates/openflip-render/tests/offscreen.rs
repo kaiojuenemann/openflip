@@ -26,6 +26,14 @@ fn rgb8(c: Color) -> [u8; 4] {
     [q(c.r), q(c.g), q(c.b), 255]
 }
 
+/// The classic theme with flat cards, so pixels can be compared exactly.
+fn flat_classic() -> Theme {
+    Theme {
+        card_texture: 0.0,
+        ..Theme::classic()
+    }
+}
+
 fn at_rest(face: &ClockFace) -> Vec<CardFlip> {
     CardContent::from_face(face)
         .into_iter()
@@ -47,7 +55,7 @@ fn rects(scene: &Scene) -> (Vec<&Rect>, Vec<&Rect>) {
 #[test]
 #[ignore = "needs a GPU"]
 fn draws_background_cards_digits_and_split_line() {
-    let theme = Theme::classic();
+    let theme = flat_classic();
     let config = Config {
         time_format: TimeFormat::H12,
         show_seconds: true,
@@ -124,7 +132,7 @@ fn mid_flip(progress: f32) -> (Scene, Rect) {
         progress,
     };
     let cards = [CardFlip::at_rest(content("10")), flip];
-    let scene = layout::build_scene(&cards, None, &Theme::classic(), (800, 450), 0.9);
+    let scene = layout::build_scene(&cards, None, &flat_classic(), (800, 450), 0.9);
     let card = (*rects(&scene).0.last().unwrap()).clone();
     (scene, card)
 }
@@ -149,7 +157,7 @@ fn the_falling_flap_is_drawn_in_perspective() {
 fn the_falling_flap_casts_a_shadow_on_the_lower_half() {
     let (scene, card) = mid_flip(0.45);
     let image = render(&scene);
-    let card_color = rgb8(Theme::classic().card);
+    let card_color = rgb8(flat_classic().card);
     // Near the left edge, just below the split line, away from the digits.
     let shadowed = pixel(&image, 800, card.x + 6.0, card.y + card.height * 0.55);
     assert!(
@@ -163,4 +171,42 @@ fn the_falling_flap_casts_a_shadow_on_the_lower_half() {
         "{lit:?} close to {card_color:?}"
     );
     assert!(lit[0] > shadowed[0]);
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn cards_have_a_subtle_texture_close_to_their_colour() {
+    let theme = Theme::classic();
+    let face = ClockFace {
+        hours: ['1', '0'],
+        minutes: ['4', '2'],
+        seconds: None,
+        pm: None,
+    };
+    let scene = layout::build_scene(&at_rest(&face), None, &theme, (1280, 720), 0.9);
+    let image = render(&scene);
+    let card = rects(&scene).0[0];
+    // A band near the top of the card, clear of the digits and corners.
+    let card_color = i32::from(rgb8(theme.card)[0]);
+    let mut values = Vec::new();
+    for y in (card.y + 6.0) as u32..(card.y + card.height * 0.12) as u32 {
+        for x in (card.x + card.width * 0.1) as u32..(card.x + card.width * 0.9) as u32 {
+            values.push(i32::from(pixel(&image, 1280, x as f32, y as f32)[0]));
+        }
+    }
+    let mean = values.iter().sum::<i32>() as f32 / values.len() as f32;
+    let distinct = values
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    assert!(distinct > 4, "textured, not flat");
+    assert!(
+        (mean - card_color as f32).abs() < 3.0,
+        "mean {mean} close to {card_color}"
+    );
+    let background = i32::from(rgb8(theme.background)[0]);
+    assert!(
+        values.iter().all(|&v| v > background),
+        "cards stay distinct from the background"
+    );
 }

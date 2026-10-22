@@ -1,5 +1,5 @@
-// Draws instanced quads: rounded rectangles (mode 0) and glyphs from the atlas
-// (mode 1). Any quad can be folded: cut at a hinge line, keeping one half,
+// Draws instanced quads: rounded rectangles (mode 0), optionally with a felt
+// texture, and glyphs from the atlas (mode 1). Any quad can be folded: cut at a hinge line, keeping one half,
 // and rotated about that hinge with perspective, which is how the flaps of
 // the flip clock move.
 
@@ -15,7 +15,8 @@ struct Globals {
 struct Instance {
     // x, y, width, height in pixels
     @location(0) rect: vec4<f32>,
-    // atlas rectangle in pixels: x, y, width, height
+    // glyphs: atlas rectangle in pixels (x, y, width, height);
+    // rectangles: texture strength, 1 if the target is sRGB (linear values)
     @location(1) uv: vec4<f32>,
     @location(2) color: vec4<f32>,
     // corner radius, mode
@@ -37,6 +38,8 @@ struct VertexOutput {
     @location(5) hinge_offset: f32,
     // half, shade, shade falloff
     @location(6) @interpolate(flat) fold: vec3<f32>,
+    // rectangles: top-left corner, texture strength, linear target
+    @location(7) @interpolate(flat) surface: vec4<f32>,
 };
 
 fn to_ndc(pixel: vec2<f32>) -> vec2<f32> {
@@ -82,7 +85,66 @@ fn vs_main(@builtin(vertex_index) index: u32, instance: Instance) -> VertexOutpu
     out.params = instance.params;
     out.hinge_offset = dy;
     out.fold = vec3<f32>(instance.fold.z, instance.fold_extra.y, instance.fold_extra.z);
+    out.surface = vec4<f32>(instance.rect.xy, instance.uv.xy);
     return out;
+}
+
+// Felt texture: fine grain, soft clouds and a few short light fibres, in
+// sRGB units around zero. `p` is a position on the rectangle at rest, so the
+// pattern sticks to it while it folds; `scale` follows its size so the felt
+// looks the same at any resolution.
+
+fn hash(p: vec2<f32>) -> f32 {
+    let q = fract(p * vec2<f32>(0.1031, 0.1030));
+    let r = q + dot(q, q.yx + 33.33);
+    return fract((r.x + r.y) * r.x);
+}
+
+fn hash2(p: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(hash(p), hash(p + vec2<f32>(57.0, 113.0)));
+}
+
+fn value_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = hash(i);
+    let b = hash(i + vec2<f32>(1.0, 0.0));
+    let c = hash(i + vec2<f32>(0.0, 1.0));
+    let d = hash(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// Brightness of the fibre in the cell around `p`, if that cell has one.
+fn fibre(p: vec2<f32>, cell: f32) -> f32 {
+    let id = floor(p / cell);
+    let r = hash2(id + vec2<f32>(17.0, 3.0));
+    if r.x > 0.1 {
+        return 0.0;
+    }
+    let angle = r.y * 6.2832;
+    let dir = vec2<f32>(cos(angle), sin(angle));
+    let centre = (id + 0.5 + (hash2(id) - 0.5) * 0.3) * cell;
+    let d = p - centre;
+    let along = clamp(dot(d, dir), -0.32 * cell, 0.32 * cell);
+    let distance = length(d - dir * along);
+    let width = max(0.04 * cell, 0.5);
+    return clamp(1.0 - distance / width, 0.0, 1.0) * (0.5 + 0.5 * hash(id + vec2<f32>(5.0, 9.0)));
+}
+
+fn felt(p: vec2<f32>, scale: f32) -> f32 {
+    let grain = hash(floor(p)) - 0.5;
+    let clouds = value_noise(p / (scale * 0.12)) * 0.6 + value_noise(p / (scale * 0.04)) * 0.4 - 0.5;
+    let fibres = fibre(p, scale / 55.0) + fibre(p + vec2<f32>(0.37, 0.71) * scale, scale / 70.0);
+    return grain * 0.02 + clouds * 0.022 + fibres * 0.055;
+}
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2));
+}
+
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    return pow(max(c, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.2));
 }
 
 @fragment
@@ -109,5 +171,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let q = abs(in.local - half_size) - half_size + vec2<f32>(radius);
     let distance = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
     let alpha = clamp(0.5 - distance, 0.0, 1.0);
-    return vec4<f32>(in.color.rgb * tint, in.color.a * alpha);
+    var color = in.color.rgb;
+    let texture = in.surface.z;
+    if texture > 0.0 {
+        let linear = in.surface.w > 0.5;
+        var srgb = color;
+        if linear {
+            srgb = linear_to_srgb(color);
+        }
+        srgb = srgb + vec3<f32>(texture * felt(in.surface.xy + in.local, in.size.y));
+        color = select(srgb, srgb_to_linear(srgb), linear);
+    }
+    return vec4<f32>(color * tint, in.color.a * alpha);
 }
