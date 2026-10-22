@@ -32,6 +32,20 @@ fail() {
 
 alive() { kill -0 "$1" 2>/dev/null; }
 
+# Prints the last X window of process $1 once it has one. Busy CI runners
+# can take well over the usual second to open it, so wait up to 30 s.
+window_of() {
+    local window
+    for _ in $(seq 30); do
+        window="$(xdotool search --onlyvisible --pid "$1" 2>/dev/null | tail -1)"
+        if [ -n "$window" ]; then
+            echo "$window"
+            return
+        fi
+        sleep 1
+    done
+}
+
 expect_running() {
     if alive "$1"; then
         echo "$2 is running"
@@ -57,7 +71,7 @@ sleep 4
 expect_running $APP "app (windowed)"
 
 # 2. Embedded into the app's window, ending when that window goes away.
-WINDOW="$(xdotool search --pid $APP | tail -1)"
+WINDOW="$(window_of $APP)"
 "$BIN" -window-id "$WINDOW" >"$LOGS/embedded.log" 2>&1 &
 EMBEDDED=$!
 sleep 4
@@ -77,8 +91,10 @@ finish embedded "embedded (-window-id)"
 xdotool mousemove 640 360
 "$BIN" --screensaver >"$LOGS/saver.log" 2>&1 &
 SAVER=$!
-sleep 4
-expect_running $SAVER "screensaver"
+SAVER_WINDOW="$(window_of $SAVER)"
+# Past the screensaver's one-second grace period after its window appeared.
+sleep 2
+expect_running $SAVER "screensaver (window ${SAVER_WINDOW:-none})"
 xdotool mousemove 740 360
 sleep 2
 if alive $SAVER; then
