@@ -42,6 +42,8 @@ pub struct OpenFlip {
     clock: Clock,
     renderer: SurfaceRenderer,
     size: (u32, u32),
+    /// Whether the view is on the primary display; see [`openflip_set_primary`].
+    primary: bool,
 }
 
 fn response_code(response: Response) -> u32 {
@@ -135,6 +137,7 @@ unsafe fn new_for_view(
         clock,
         renderer,
         size,
+        primary: true,
     })
 }
 
@@ -192,6 +195,26 @@ pub unsafe extern "C" fn openflip_resize(handle: *mut OpenFlip, width: u32, heig
     }
 }
 
+/// Tells the clock whether the view is on the primary display. Views on
+/// other displays show only the background when the settings ask for the
+/// primary display only. New handles start as primary.
+///
+/// # Safety
+///
+/// `handle` must be null or a live handle.
+#[no_mangle]
+pub unsafe extern "C" fn openflip_set_primary(handle: *mut OpenFlip, primary: bool) {
+    // SAFETY: forwarded from the caller.
+    unsafe {
+        with(handle, (), |h| {
+            if h.primary != primary {
+                h.primary = primary;
+                h.clock.invalidate();
+            }
+        })
+    }
+}
+
 /// Draws a frame if one is due. Call it as often as convenient (e.g. at
 /// 60 Hz); it returns quickly when nothing changed. Returns whether it drew.
 ///
@@ -206,7 +229,7 @@ pub unsafe extern "C" fn openflip_draw(handle: *mut OpenFlip) -> bool {
             if !h.clock.needs_frame(Instant::now()) {
                 return false;
             }
-            let frame = h.clock.frame(h.size);
+            let frame = h.clock.frame_on(h.size, h.primary);
             if let Some(font) = frame.new_font {
                 h.renderer.set_font(font);
             }

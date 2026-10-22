@@ -41,10 +41,17 @@ XScreenSaver starts openflip with `--root` and ends it when you return; the
 preview in `xscreensaver-settings` uses `-window-id`. Change the clock's
 look with `openflip --settings`.
 
+With several monitors, XScreenSaver runs one openflip per monitor. With
+**Displays: Primary** in the settings, only the primary monitor
+(`xrandr --output … --primary`, otherwise the first one) shows the clock.
+
 ### Sway, Hyprland and other wlroots compositors (Wayland)
 
-Start openflip from your idle daemon. It runs fullscreen and ends on any
-key, click or mouse movement; the `resume` command is a safety net.
+Start openflip from your idle daemon. It runs fullscreen on every output and
+ends on any key, click or mouse movement; the `resume` command is a safety
+net. Wayland does not tell apps which output is the primary one, so with
+**Displays: Primary** the clock shows on the first output the compositor
+lists.
 
 **swayidle** (e.g. in your Sway config):
 

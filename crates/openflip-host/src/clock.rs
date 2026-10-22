@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{NaiveDateTime, Timelike};
-use openflip_core::{Config, Text};
+use openflip_core::{Config, MonitorMode, Text};
 use openflip_render::overlay::OverlayLayout;
 use openflip_render::{Flipper, Font, Scene};
 
@@ -228,6 +228,19 @@ impl Clock {
 
     /// Advances the clock and builds the frame for a surface of `size` pixels.
     pub fn frame(&mut self, size: (u32, u32)) -> Frame {
+        self.frame_on(size, true)
+    }
+
+    /// Whether a display shows the clock, or only the background because
+    /// the settings ask for the primary display only.
+    pub fn shows_clock_on(&self, primary: bool) -> bool {
+        primary || self.look.config.monitors == MonitorMode::All
+    }
+
+    /// Like [`Clock::frame`], for one of several displays sharing this
+    /// clock. Secondary displays stay blank if [`Clock::shows_clock_on`]
+    /// says so.
+    pub fn frame_on(&mut self, size: (u32, u32), primary: bool) -> Frame {
         let frame_start = Instant::now();
         if frame_start.duration_since(self.last_reload_check) >= RELOAD_INTERVAL {
             self.last_reload_check = frame_start;
@@ -239,9 +252,18 @@ impl Clock {
             .unwrap_or_else(|| chrono::Local::now().naive_local());
         let t = self.started.elapsed().as_secs_f64();
         self.flipper.update(&self.look.cards_at(now), t);
-        let mut scene = self.look.scene(&self.flipper.cards(t), now, size);
+        let mut scene = if self.shows_clock_on(primary) {
+            self.look.scene(&self.flipper.cards(t), now, size)
+        } else {
+            Scene {
+                width: size.0,
+                height: size.1,
+                background: self.look.theme.background,
+                groups: Vec::new(),
+            }
+        };
 
-        self.overlay = self.menu.as_ref().map(|menu| {
+        self.overlay = self.menu.as_ref().filter(|_| primary).map(|menu| {
             let message = self.message.map(|m| self.look.language.text(m).to_string());
             self.look.overlay(menu, message, size)
         });
@@ -376,6 +398,25 @@ mod tests {
     fn bundled_font_file() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../openflip-render/assets/InterDisplay-Bold.otf")
+    }
+
+    #[test]
+    fn secondary_displays_are_blank_when_only_the_primary_shows_the_clock() {
+        let mut clock = Clock::new(None).fixed_time(time());
+        assert!(!clock.frame_on(SIZE, false).scene.groups.is_empty());
+
+        clock.apply_config(
+            Config {
+                monitors: MonitorMode::Primary,
+                ..Config::default()
+            },
+            false,
+        );
+        assert!(!clock.frame_on(SIZE, true).scene.groups.is_empty());
+        let blank = clock.frame_on(SIZE, false).scene;
+        assert!(blank.groups.is_empty());
+        assert_eq!(blank.background, clock.look().theme.background);
+        assert_eq!((blank.width, blank.height), SIZE);
     }
 
     #[test]

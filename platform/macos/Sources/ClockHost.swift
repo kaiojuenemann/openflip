@@ -7,10 +7,21 @@ final class ClockHost {
     private(set) var handle: OpaquePointer?
     private unowned let view: NSView
     private let settingsOnly: Bool
+    /// Whether the view may be on a display other than the primary one,
+    /// which then stays blank if the settings say so. False for previews
+    /// and the settings, which always show the clock.
+    private let followsDisplay: Bool
 
-    init(view: NSView, settingsOnly: Bool) {
+    init(view: NSView, settingsOnly: Bool, followsDisplay: Bool = false) {
         self.view = view
         self.settingsOnly = settingsOnly
+        self.followsDisplay = followsDisplay
+    }
+
+    /// Whether the view is on the primary display, the one with the menu bar.
+    private var onPrimaryDisplay: Bool {
+        guard followsDisplay, let screen = view.window?.screen else { return true }
+        return screen == NSScreen.screens.first
     }
 
     deinit {
@@ -33,6 +44,7 @@ final class ClockHost {
         }
         guard let handle else { return }
         openflip_resize(handle, size.width, size.height)
+        openflip_set_primary(handle, onPrimaryDisplay)
         _ = openflip_draw(handle)
     }
 

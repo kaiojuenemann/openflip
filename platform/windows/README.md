@@ -32,8 +32,9 @@ App and screensaver share one settings file:
 `%APPDATA%\openflip\openflip\config\config.toml`. Change it with `S` in the
 app or with **Settings…** in the screensaver dialog.
 
-For now the screensaver shows the clock on the main display; all-display
-support follows with multi-monitor support (#7).
+The screensaver covers every display. With **Displays: Primary** in the
+settings, only the main display (as set in Windows' display settings) shows
+the clock; the others stay dark.
 
 ## Build
 

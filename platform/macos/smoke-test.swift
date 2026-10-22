@@ -1,5 +1,6 @@
 // Loads OpenFlip.saver the way macOS does and runs it briefly: the
-// screensaver view, then the Options sheet, which is closed with Escape.
+// screensaver view (as preview and full screen), then the Options sheet,
+// which is closed with Escape.
 //
 //   OPENFLIP_LOG=1 swift platform/macos/smoke-test.swift target/macos/OpenFlip.saver
 
@@ -39,6 +40,17 @@ for _ in 0..<90 {
 }
 view.stopAnimation()
 print("screensaver view ran 90 frames")
+
+// A full-screen view (not a preview) also asks which display it is on.
+guard let fullView = saverClass.init(frame: frame, isPreview: false) else { fail("view init failed") }
+window.contentView = fullView
+fullView.startAnimation()
+for _ in 0..<30 {
+    fullView.animateOneFrame()
+    pump(seconds: 1.0 / 60.0)
+}
+fullView.stopAnimation()
+print("non-preview view ran 30 frames")
 
 guard view.hasConfigureSheet, let sheet = view.configureSheet else { fail("no configure sheet") }
 sheet.orderFront(nil)

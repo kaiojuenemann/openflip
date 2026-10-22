@@ -32,6 +32,9 @@ OpenFlip *openflip_new_for_view(void *view, uint32_t width, uint32_t height, boo
 void openflip_free(OpenFlip *handle);
 
 void openflip_resize(OpenFlip *handle, uint32_t width, uint32_t height);
+// Whether the view is on the primary display (the default). Other displays
+// stay blank when the settings ask for the primary display only.
+void openflip_set_primary(OpenFlip *handle, bool primary);
 // Draws if a frame is due; cheap otherwise. Returns whether it drew.
 bool openflip_draw(OpenFlip *handle);
 
