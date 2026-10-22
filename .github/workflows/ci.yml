@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its older, still running checks:
+# they test code that is already superseded and would only hold runners
+# (macOS runners are scarce). Pushes to main always run to completion.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -17,7 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        # macOS is checked in the "macOS" job below, together with the
+        # bundles, so each run needs a single macOS runner.
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -34,15 +43,20 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-  macos-bundles:
-    name: macOS bundles
+  macos:
+    name: macOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          components: clippy
           targets: aarch64-apple-darwin, x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
       - name: Build openflip.app and OpenFlip.saver
         run: platform/macos/build.sh
       - name: Load and run the screensaver
