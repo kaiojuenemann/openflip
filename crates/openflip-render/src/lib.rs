@@ -27,5 +27,5 @@ pub use animation::{flip_angle, CardContent, CardFlip, Flipper, FLIP_DURATION};
 pub use font::{Font, FontError};
 pub use gpu::{render_offscreen, Gpu, RenderError, SurfaceRenderer, OFFSCREEN_FORMAT};
 pub use painter::Painter;
-pub use scene::{Color, Fold, Group, HAlign, Half, Item, Rect, Scene, Text};
+pub use scene::{Color, Fold, Group, HAlign, Half, Item, Rect, Scene, Text, VAlign};
 pub use theme::Theme;

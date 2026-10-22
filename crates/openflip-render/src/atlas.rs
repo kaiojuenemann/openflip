@@ -103,7 +103,11 @@ impl Atlas {
             return Ok(*entry);
         }
         let glyph = id.with_scale(PxScale::from(size));
-        let Some(outline) = font.0.as_scaled(PxScale::from(size)).outline_glyph(glyph) else {
+        let Some(outline) = font
+            .data
+            .as_scaled(PxScale::from(size))
+            .outline_glyph(glyph)
+        else {
             self.entries.insert(key, None);
             return Ok(None);
         };
