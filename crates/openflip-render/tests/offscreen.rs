@@ -219,3 +219,26 @@ fn cards_have_a_subtle_texture_lit_from_the_front() {
         "close to the card colour {card_color}: {outer}..{inner}"
     );
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn the_split_line_keeps_its_width_while_a_card_flips() {
+    for progress in [0.25, 0.75] {
+        let (scene, card) = mid_flip(progress);
+        let image = render(&scene);
+        let (_, splits) = rects(&scene);
+        let split = splits
+            .iter()
+            .find(|s| s.x == card.x)
+            .expect("the flipping card's split line");
+        let background = rgb8(flat_classic().background);
+        let x = card.x + card.width * 0.5;
+        for y in [split.y + 0.5, split.y + split.height - 0.5] {
+            assert_eq!(
+                pixel(&image, 800, x, y),
+                background,
+                "row {y} of the line at progress {progress}"
+            );
+        }
+    }
+}

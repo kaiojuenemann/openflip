@@ -157,7 +157,6 @@ fn push_card(scene: &mut Scene, card: CardBox, flip: &CardFlip, theme: &Theme) {
         fold: Some(fold(Half::Bottom, 0.0, shadow, card.height / 2.0)),
         items: face(card, &flip.from, theme),
     });
-    scene.groups.push(split_line(card, theme));
 
     // The flap: old top half while falling, new bottom half (its back)
     // while coming down.
@@ -171,6 +170,8 @@ fn push_card(scene: &mut Scene, card: CardBox, flip: &CardFlip, theme: &Theme) {
         fold: Some(flap),
         items: face(card, if falling { &flip.from } else { &flip.to }, theme),
     });
+    // Last, so the flap never covers part of it: the line keeps its width.
+    scene.groups.push(split_line(card, theme));
 }
 
 /// The card background with its digits and marker.
@@ -429,10 +430,16 @@ mod tests {
     }
 
     #[test]
-    fn the_flap_is_painted_last() {
-        let scene = flipping(0.25);
-        let last = scene.groups.last().unwrap();
-        assert!(last.fold.is_some_and(|f| f.angle != 0.0));
+    fn the_flap_is_painted_over_the_card_and_under_the_split_line() {
+        for progress in [0.25, 0.75] {
+            let scene = flipping(progress);
+            let [.., flap, line] = scene.groups.as_slice() else {
+                panic!("too few groups");
+            };
+            assert!(flap.fold.is_some_and(|f| f.angle != 0.0));
+            assert!(line.fold.is_none());
+            assert!(matches!(line.items.as_slice(), [Item::Rect(r)] if r.radius == 0.0));
+        }
     }
 
     impl Rect {
