@@ -175,7 +175,7 @@ fn the_falling_flap_casts_a_shadow_on_the_lower_half() {
 
 #[test]
 #[ignore = "needs a GPU"]
-fn cards_have_a_subtle_texture_close_to_their_colour() {
+fn cards_have_a_subtle_texture_lit_from_the_front() {
     let theme = Theme::classic();
     let face = ClockFace {
         hours: ['1', '0'],
@@ -186,27 +186,36 @@ fn cards_have_a_subtle_texture_close_to_their_colour() {
     let scene = layout::build_scene(&at_rest(&face), None, &theme, (1280, 720), 0.9);
     let image = render(&scene);
     let card = rects(&scene).0[0];
-    // A band near the top of the card, clear of the digits and corners.
-    let card_color = i32::from(rgb8(theme.card)[0]);
-    let mut values = Vec::new();
-    for y in (card.y + 6.0) as u32..(card.y + card.height * 0.12) as u32 {
-        for x in (card.x + card.width * 0.1) as u32..(card.x + card.width * 0.9) as u32 {
-            values.push(i32::from(pixel(&image, 1280, x as f32, y as f32)[0]));
+    // Mean and values of a patch of the first card, clear of the digits.
+    let patch = |x0: f32, y0: f32| {
+        let mut values = Vec::new();
+        for y in y0 as u32..y0 as u32 + 30 {
+            for x in x0 as u32..x0 as u32 + 30 {
+                values.push(i32::from(pixel(&image, 1280, x as f32, y as f32)[0]));
+            }
         }
-    }
-    let mean = values.iter().sum::<i32>() as f32 / values.len() as f32;
+        let mean = values.iter().sum::<i32>() as f32 / values.len() as f32;
+        (mean, values)
+    };
+    let top = card.y + 8.0;
+    // Towards the screen's centre and towards its outer corner.
+    let (inner, values) = patch(card.x + card.width - 40.0, top);
+    let (outer, _) = patch(card.x + 10.0, top);
+
     let distinct = values
         .iter()
         .collect::<std::collections::BTreeSet<_>>()
         .len();
     assert!(distinct > 4, "textured, not flat");
-    assert!(
-        (mean - card_color as f32).abs() < 3.0,
-        "mean {mean} close to {card_color}"
-    );
+    let card_color = rgb8(theme.card)[0] as f32;
     let background = i32::from(rgb8(theme.background)[0]);
     assert!(
         values.iter().all(|&v| v > background),
-        "cards stay distinct from the background"
+        "distinct from the background"
+    );
+    assert!(inner > outer + 1.0, "lit in the middle: {inner} vs {outer}");
+    assert!(
+        outer > card_color - 2.0 && inner < card_color + 14.0,
+        "close to the card colour {card_color}: {outer}..{inner}"
     );
 }
