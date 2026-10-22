@@ -29,7 +29,7 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -47,7 +47,7 @@ jobs:
     name: macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -68,7 +68,7 @@ jobs:
           cp platform/macos/README.md target/macos/INSTALL.md
           cd target/macos
           zip -qry openflip-macos.zip OpenFlip.saver openflip.app INSTALL.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openflip-macos
           path: |
@@ -79,7 +79,7 @@ jobs:
     name: Windows package
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -99,7 +99,7 @@ jobs:
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path target\windows\openflip.scr, target\windows\openflip.exe, target\windows\INSTALL.md -DestinationPath target\windows\openflip-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openflip-windows
           path: |
@@ -110,7 +110,7 @@ jobs:
     name: Linux package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install X server, software Vulkan and XScreenSaver
@@ -128,7 +128,7 @@ jobs:
           cp target/release/openflip platform/linux/openflip.xml target/linux/
           cp platform/linux/README.md target/linux/INSTALL.md
           tar czf target/openflip-linux-x86_64.tar.gz -C target/linux .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openflip-linux
           path: target/openflip-linux-x86_64.tar.gz
@@ -137,7 +137,7 @@ jobs:
     name: GPU tests (lavapipe)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install software Vulkan driver
@@ -146,7 +146,7 @@ jobs:
         run: cargo test -- --ignored
       - name: Render screenshot
         run: cargo run --release -- --screenshot screenshot.png --time 10:42:07
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: screenshot
           path: screenshot.png
