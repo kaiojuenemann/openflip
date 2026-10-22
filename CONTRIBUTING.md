@@ -42,6 +42,18 @@ frame without opening a window — please attach before/after images to your PR.
 Use the imperative mood ("Add date line", not "Added date line") and keep the
 first line under ~72 characters.
 
+## Releasing
+
+1. Raise `version` in `Cargo.toml` and move the changes under
+   `## [Unreleased]` in `CHANGELOG.md` to a section for the new version.
+   Merge that to `main`.
+2. On GitHub, open **Actions → CI → Run workflow** and run it on `main`.
+   CI builds and tests everything and drafts a release `vX.Y.Z` with the
+   macOS, Windows and Linux packages and the changelog section as notes.
+   (Pushing a tag `vX.Y.Z` does the same.)
+3. Check the draft under **Releases** and publish it. Publishing creates the
+   tag on the commit that was built.
+
 ## License
 
 By contributing you agree that your contributions are licensed under the
