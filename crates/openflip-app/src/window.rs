@@ -1,7 +1,9 @@
-//! Interactive mode: a fullscreen or windowed clock driven by winit.
+//! The clock in a window: as an app, as a screensaver, or as the small
+//! preview inside the Windows screensaver settings.
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use openflip_host::{Clock, Key, Response};
 use openflip_render::SurfaceRenderer;
@@ -9,9 +11,20 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::{Key as WinitKey, NamedKey};
-use winit::window::{Fullscreen, Window, WindowId};
+use winit::window::{Fullscreen, Window, WindowAttributes, WindowId, WindowLevel};
 
 use crate::cli::Options;
+use crate::screensaver::{ExitOnInput, Input};
+
+enum Mode {
+    /// The interactive clock: settings, fullscreen toggle and so on.
+    App,
+    /// Fullscreen on top of everything; any input ends it.
+    Screensaver(ExitOnInput),
+    /// Drawn into a native parent window, e.g. the preview in the Windows
+    /// screensaver settings. Ignores input and ends with its parent.
+    Preview(u64),
+}
 
 pub fn run(
     config_path: Option<PathBuf>,
@@ -25,12 +38,22 @@ pub fn run(
     if let Some(time) = options.time {
         clock = clock.fixed_time(time);
     }
+    let mode = match options.preview {
+        Some(parent) => Mode::Preview(parent),
+        None if options.screensaver => Mode::Screensaver(ExitOnInput::new(Instant::now())),
+        None => Mode::App,
+    };
     let mut app = App {
         display: event_loop.owned_display_handle(),
         clock,
         // The settings window, opened by the OS screensaver settings, is
         // never fullscreen.
-        fullscreen: !options.windowed && !options.settings,
+        fullscreen: match mode {
+            Mode::App => !options.windowed && !options.settings,
+            Mode::Screensaver(_) => true,
+            Mode::Preview(_) => false,
+        },
+        mode,
         window: None,
         renderer: None,
         error: None,
@@ -45,6 +68,7 @@ pub fn run(
 struct App {
     display: OwnedDisplayHandle,
     clock: Clock,
+    mode: Mode,
     fullscreen: bool,
     window: Option<Arc<Window>>,
     renderer: Option<SurfaceRenderer>,
@@ -55,7 +79,12 @@ impl App {
     /// The cursor is hidden in fullscreen, except while the settings are open.
     fn update_cursor(&self) {
         if let Some(window) = &self.window {
-            window.set_cursor_visible(!self.fullscreen || self.clock.is_settings_open());
+            let visible = match self.mode {
+                Mode::App => !self.fullscreen || self.clock.is_settings_open(),
+                Mode::Screensaver(_) => false,
+                Mode::Preview(_) => true,
+            };
+            window.set_cursor_visible(visible);
         }
     }
 
@@ -101,10 +130,13 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
-        let attributes = Window::default_attributes()
-            .with_title("openflip")
-            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
-            .with_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None)));
+        let attributes = match self.mode {
+            Mode::Preview(parent) => preview_attributes(parent)?,
+            _ => Window::default_attributes()
+                .with_title("openflip")
+                .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
+                .with_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None))),
+        };
         let window = Arc::new(
             event_loop
                 .create_window(attributes)
@@ -127,11 +159,57 @@ impl App {
         ))
         .map_err(|e| e.to_string())?;
 
+        // Raise the screensaver above everything only now: on Windows,
+        // Direct3D refused to create a swap chain for a fullscreen window
+        // that was topmost from the start.
+        if let Mode::Screensaver(_) = self.mode {
+            window.set_window_level(WindowLevel::AlwaysOnTop);
+        }
+
         self.window = Some(window);
         self.renderer = Some(renderer);
         self.update_cursor();
         Ok(())
     }
+}
+
+/// A borderless child window filling the parent's client area.
+#[cfg(windows)]
+fn preview_attributes(parent: u64) -> Result<WindowAttributes, String> {
+    use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
+    use windows_sys::Win32::Foundation::{HWND, RECT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+
+    let handle = std::num::NonZeroIsize::new(parent as isize).ok_or("invalid window handle")?;
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: GetClientRect only reads the window; an invalid handle fails.
+    if unsafe { GetClientRect(parent as usize as HWND, &mut rect) } == 0 {
+        return Err(format!("no window with handle {parent}"));
+    }
+    let size = winit::dpi::PhysicalSize::new(
+        (rect.right - rect.left).max(1) as u32,
+        (rect.bottom - rect.top).max(1) as u32,
+    );
+    let attributes = Window::default_attributes()
+        .with_title("openflip preview")
+        .with_decorations(false)
+        .with_position(winit::dpi::PhysicalPosition::new(0, 0))
+        .with_inner_size(size);
+    // SAFETY: Windows handed us this window for the preview. Our window is
+    // its child, so it is destroyed with the parent and never outlives it.
+    Ok(unsafe {
+        attributes.with_parent_window(Some(RawWindowHandle::Win32(Win32WindowHandle::new(handle))))
+    })
+}
+
+#[cfg(not(windows))]
+fn preview_attributes(_parent: u64) -> Result<WindowAttributes, String> {
+    Err("the screensaver preview (/p) is only available on Windows".into())
 }
 
 /// Maps a key press to the clock's keys. Arrow keys repeat while held;
@@ -173,8 +251,42 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        match &mut self.mode {
+            Mode::App => {}
+            // Any key, click, scroll or real mouse movement ends the screensaver.
+            Mode::Screensaver(exit) => {
+                let input = match &event {
+                    WindowEvent::KeyboardInput { event, .. }
+                        if event.state == ElementState::Pressed =>
+                    {
+                        Input::KeyPressed
+                    }
+                    WindowEvent::MouseInput {
+                        state: ElementState::Pressed,
+                        ..
+                    } => Input::ButtonPressed,
+                    WindowEvent::MouseWheel { .. } => Input::Wheel,
+                    WindowEvent::CursorMoved { position, .. } => {
+                        Input::MouseAt(position.x, position.y)
+                    }
+                    WindowEvent::Resized(_) | WindowEvent::Moved(_) => Input::WindowChanged,
+                    _ => Input::Other,
+                };
+                if exit.ends(input, Instant::now()) {
+                    log::info!("screensaver ends on {event:?}");
+                    return event_loop.exit();
+                }
+            }
+            Mode::Preview(_) => match event {
+                WindowEvent::KeyboardInput { .. }
+                | WindowEvent::MouseInput { .. }
+                | WindowEvent::MouseWheel { .. }
+                | WindowEvent::CursorMoved { .. } => return,
+                _ => {}
+            },
+        }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested | WindowEvent::Destroyed => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize((size.width, size.height));

@@ -1,6 +1,7 @@
 //! Device setup and the two ways to get pixels out: a window surface or an image.
 
 use std::fmt;
+use std::sync::Arc;
 
 use crate::font::Font;
 use crate::painter::Painter;
@@ -62,6 +63,11 @@ impl Gpu {
             })
             .await
             .map_err(RenderError::NoDevice)?;
+        // wgpu panics on unhandled errors by default. A clock, and above all
+        // a screensaver, should keep running and report them instead.
+        device.on_uncaptured_error(Arc::new(|error| {
+            eprintln!("openflip: graphics error: {error}");
+        }));
         Ok(Self {
             adapter,
             device,
@@ -75,6 +81,10 @@ pub struct SurfaceRenderer {
     gpu: Gpu,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    /// Whether the surface accepted `config`; drawing waits until it does.
+    configured: bool,
+    /// Whether the current run of configuration failures was reported.
+    failure_reported: bool,
     painter: Painter,
 }
 
@@ -107,14 +117,40 @@ impl SurfaceRenderer {
             view_formats: vec![],
             color_space: wgpu::SurfaceColorSpace::Auto,
         };
-        surface.configure(&gpu.device, &config);
         let painter = Painter::new(&gpu.device, format, font);
-        Ok(Self {
+        let mut renderer = Self {
             gpu,
             surface,
             config,
+            configured: false,
+            failure_reported: false,
             painter,
-        })
+        };
+        renderer.configure();
+        Ok(renderer)
+    }
+
+    /// Applies `config` to the surface. This can fail, e.g. while a window
+    /// is being minimised or on a desktop without a compositor; the next
+    /// frame then tries again.
+    fn configure(&mut self) -> bool {
+        let scope = self
+            .gpu
+            .device
+            .push_error_scope(wgpu::ErrorFilter::Validation);
+        self.surface.configure(&self.gpu.device, &self.config);
+        let error = pollster::block_on(scope.pop());
+        match &error {
+            // Report the first failure only; retries happen every frame.
+            Some(error) if !self.failure_reported => {
+                eprintln!("openflip: cannot draw into the window: {error}");
+                self.failure_reported = true;
+            }
+            Some(_) => {}
+            None => self.failure_reported = false,
+        }
+        self.configured = error.is_none();
+        self.configured
     }
 
     pub fn set_font(&mut self, font: Font) {
@@ -136,17 +172,20 @@ impl SurfaceRenderer {
         }
         self.config.width = width;
         self.config.height = height;
-        self.surface.configure(&self.gpu.device, &self.config);
+        self.configure();
     }
 
     /// Draws one frame. Frames that cannot be presented right now (window
     /// hidden, surface being resized) are skipped silently.
     pub fn render(&mut self, scene: &Scene) {
+        if !self.configured && !self.configure() {
+            return;
+        }
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface.configure(&self.gpu.device, &self.config);
+                self.configure();
                 return;
             }
             _ => return,

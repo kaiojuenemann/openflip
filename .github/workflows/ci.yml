@@ -61,6 +61,37 @@ jobs:
             target/macos/openflip-macos.zip
             target/macos/screenshot.png
 
+  windows-package:
+    name: Windows package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked -p openflip-app
+      - name: Assemble
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target\windows | Out-Null
+          Copy-Item target\release\openflip.exe target\windows\openflip.exe
+          Copy-Item target\release\openflip.exe target\windows\openflip.scr
+          Copy-Item platform\windows\README.md target\windows\INSTALL.md
+      - name: Render with Direct3D
+        run: target\windows\openflip.exe --screenshot target\windows\screenshot.png --time 10:42:07
+      - name: Run as screensaver, settings and preview
+        shell: pwsh
+        run: platform\windows\smoke-test.ps1 target\windows\openflip.scr
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path target\windows\openflip.scr, target\windows\openflip.exe, target\windows\INSTALL.md -DestinationPath target\windows\openflip-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openflip-windows
+          path: |
+            target/windows/openflip-windows.zip
+            target/windows/screenshot.png
+
   gpu-tests:
     name: GPU tests (lavapipe)
     runs-on: ubuntu-latest
