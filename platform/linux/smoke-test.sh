@@ -117,16 +117,28 @@ programs:	\\
 
 CONFIG
     HOME="$HOME_XSS" xscreensaver -no-splash >"$LOGS/xscreensaver.log" 2>&1 &
-    sleep 3
+    # The daemon takes a varying while to start on busy CI runners; wait
+    # until it answers instead of sleeping a fixed time.
+    for _ in $(seq 30); do
+        HOME="$HOME_XSS" xscreensaver-command -time >/dev/null 2>&1 && break
+        sleep 1
+    done
     HOME="$HOME_XSS" xscreensaver-command -activate
-    sleep 6
+    for _ in $(seq 15); do
+        pgrep -x openflip >/dev/null && break
+        sleep 1
+    done
     if pgrep -x openflip >/dev/null; then
         echo "XScreenSaver runs openflip"
     else
         fail "XScreenSaver did not start openflip"
     fi
-    HOME="$HOME_XSS" xscreensaver-command -deactivate
     sleep 3
+    HOME="$HOME_XSS" xscreensaver-command -deactivate
+    for _ in $(seq 10); do
+        pgrep -x openflip >/dev/null || break
+        sleep 1
+    done
     if pgrep -x openflip >/dev/null; then
         fail "openflip kept running after XScreenSaver deactivated"
     else
