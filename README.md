@@ -5,16 +5,16 @@ screensaver and as a standalone fullscreen/windowed app. Inspired by the
 classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
-> **Status:** early development. The clock runs as an app with the 3D flip
-> animation and an in-app settings panel, and as a screensaver on macOS,
-> Windows and Linux (install guides:
-> [macOS](platform/macos/README.md), [Windows](platform/windows/README.md),
-> [Linux](platform/linux/README.md)), on every display or only the primary
-> one. Next up is the v0.1 release — see the [roadmap](docs/ROADMAP.md).
+![openflip flipping from 10:41 to 10:42](docs/images/flip.gif)
 
-![openflip showing 10:42 in the classic theme](docs/images/classic.png)
+**Download** the latest release for
+[macOS, Windows and Linux](https://github.com/kaiojuenemann/openflip/releases/latest)
+and follow the install guide for your system:
+[macOS](platform/macos/README.md), [Windows](platform/windows/README.md),
+[Linux](platform/linux/README.md). What changed: [CHANGELOG](CHANGELOG.md);
+what comes next: [roadmap](docs/ROADMAP.md).
 
-## Planned features (v0.1)
+## Features
 
 - Flip animation with a real 3D card fold, rendered on the GPU
 - 12-hour or 24-hour time, optional seconds
