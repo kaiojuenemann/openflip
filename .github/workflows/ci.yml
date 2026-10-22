@@ -7,6 +7,8 @@ on:
     # with the packages (see the release job at the end).
     tags: ['v*']
   pull_request:
+  # "Run workflow" on main in the Actions tab: the same, without a tag.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -159,22 +161,41 @@ jobs:
 
   release:
     name: Draft GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Either "Run workflow" on main in the Actions tab, or a pushed tag v*.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     needs: [check, macos, windows-package, linux-package, gpu-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check that the tag matches the version in Cargo.toml
+      - name: Version and tag
         run: |
           version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+          tag="v$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not match version $version in Cargo.toml"
             exit 1
           fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$GITHUB_REF_TYPE" = tag ]; then
+              # Publishing the draft made by "Run workflow" creates the tag,
+              # and that tag runs this workflow again: nothing left to do.
+              echo "::notice::release $tag exists already"
+              echo "SKIP=1" >> "$GITHUB_ENV"
+            else
+              echo "::error::release $tag exists already: raise the version in Cargo.toml and CHANGELOG.md, or delete the draft"
+              exit 1
+            fi
+          fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
       - name: Release notes from CHANGELOG.md
+        if: env.SKIP != '1'
         run: |
           awk -v v="$VERSION" '
             /^## \[/ { if (found) exit; if (index($0, "[" v "]")) { found = 1; next } }
@@ -186,20 +207,27 @@ jobs:
             exit 1
           fi
       - uses: actions/download-artifact@v7
+        if: env.SKIP != '1'
         with:
           pattern: openflip-*
           path: packages
           merge-multiple: true
       - name: Draft the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        # A draft, so the release is looked over and published by hand.
+        if: env.SKIP != '1'
+        # A draft, so the release is looked over and published by hand. From
+        # "Run workflow" the tag does not exist yet: publishing the draft
+        # creates it on the commit that was built.
         run: |
           cd packages
           mv openflip-macos.zip "openflip-$VERSION-macos.zip"
           mv openflip-windows.zip "openflip-$VERSION-windows.zip"
           mv openflip-linux-x86_64.tar.gz "openflip-$VERSION-linux-x86_64.tar.gz"
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            where="--verify-tag"
+          else
+            where="--target=$GITHUB_SHA"
+          fi
+          gh release create "$TAG" --draft "$where" \
             --title "openflip $VERSION" --notes-file ../notes.md \
             "openflip-$VERSION-macos.zip" \
             "openflip-$VERSION-windows.zip" \
