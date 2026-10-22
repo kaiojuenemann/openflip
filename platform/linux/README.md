@@ -6,8 +6,9 @@
 - **openflip.xml** — the description shown in XScreenSaver's settings
 - **INSTALL.md** — this guide
 
-openflip needs a Vulkan or OpenGL driver and, on X11, `libxkbcommon-x11`;
-every desktop installation has them.
+openflip needs a Vulkan or OpenGL driver, ALSA (`libasound2`, also used
+through PulseAudio and PipeWire) and, on X11, `libxkbcommon-x11`; every
+desktop installation has them.
 
 ## Install
 

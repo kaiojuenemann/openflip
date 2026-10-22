@@ -10,6 +10,10 @@ use std::f32::consts::PI;
 /// Length of one complete flip in seconds.
 pub const FLIP_DURATION: f64 = 0.6;
 
+/// Progress at which the flap strikes the card, before its small rebound
+/// (see [`flip_angle`]); the moment a flip is heard.
+pub const LANDING: f32 = 0.875;
+
 /// Angle of the flap in radians, from `0` (top flap flat, old value) to `π`
 /// (flap folded down, new value), for a progress between `0` and `1`.
 pub fn flip_angle(progress: f32) -> f32 {
@@ -92,6 +96,8 @@ struct CardState {
     to: CardContent,
     /// Start of the current flip, in seconds on the caller's clock.
     started: Option<f64>,
+    /// Whether the landing of the current flip was already reported.
+    landed: bool,
 }
 
 /// Remembers what each card shows and starts a flip whenever that changes.
@@ -112,6 +118,7 @@ impl Flipper {
                     from: c.clone(),
                     to: c.clone(),
                     started: None,
+                    landed: true,
                 })
                 .collect();
             return;
@@ -123,6 +130,7 @@ impl Flipper {
                 // this only happens after the clock was adjusted.
                 card.from = std::mem::replace(&mut card.to, content.clone());
                 card.started = Some(now);
+                card.landed = false;
             }
         }
     }
@@ -139,6 +147,21 @@ impl Flipper {
                 }
             })
             .collect()
+    }
+
+    /// How many flaps struck their card since the last call, up to `now`.
+    /// Each landing is reported once, however often this is called.
+    pub fn take_landings(&mut self, now: f64) -> usize {
+        let mut landings = 0;
+        for card in &mut self.cards {
+            if let Some(start) = card.started {
+                if !card.landed && progress(start, now) >= LANDING {
+                    card.landed = true;
+                    landings += 1;
+                }
+            }
+        }
+        landings
     }
 
     pub fn is_animating(&self, now: f64) -> bool {
@@ -189,6 +212,29 @@ mod tests {
         flipper.update(&[card("12"), card("34")], 0.0);
         assert!(!flipper.is_animating(0.0));
         assert!(flipper.cards(0.0).iter().all(|c| !c.is_flipping()));
+    }
+
+    #[test]
+    fn each_landing_is_reported_once_when_the_flap_strikes() {
+        let mut flipper = Flipper::default();
+        flipper.update(&[card("12"), card("34")], 0.0);
+        assert_eq!(flipper.take_landings(0.0), 0, "no flip, no landing");
+
+        flipper.update(&[card("13"), card("35")], 10.0);
+        let strike = 10.0 + FLIP_DURATION * f64::from(LANDING);
+        assert_eq!(flipper.take_landings(strike - 0.01), 0);
+        assert_eq!(flipper.take_landings(strike + 0.001), 2);
+        assert_eq!(flipper.take_landings(strike + 0.01), 0);
+        assert_eq!(flipper.take_landings(20.0), 0);
+    }
+
+    #[test]
+    fn the_flap_strikes_the_card_at_the_landing() {
+        let flat = |p: f32| (flip_angle(p) - PI).abs();
+        // Nearly flat at the landing, then lifts a little in the rebound.
+        assert!(flat(LANDING) < 0.07 * PI);
+        assert!(flat(LANDING) < flat(LANDING - 0.05));
+        assert!(flat(LANDING + 0.05) > flat(LANDING));
     }
 
     #[test]

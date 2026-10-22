@@ -19,6 +19,7 @@ the MIT license.
 - Flip animation with a real 3D card fold, rendered on the GPU
 - 12-hour or 24-hour time, optional seconds
 - Optional weekday and date line
+- Optional flap sound, recorded from a real split-flap display
 - Themes (background, card and digit colours), scaling, custom fonts
 - All monitors or primary monitor only
 - Settings as an in-app overlay, stored as TOML
@@ -45,9 +46,10 @@ cargo test
 cargo run --release --bin openflip
 ```
 
-On Linux the app needs the usual desktop libraries at runtime
-(`libxkbcommon-x11` on X11, a Vulkan or OpenGL driver); every desktop
-installation has them.
+On Linux, building needs the ALSA headers (`libasound2-dev` on Debian and
+Ubuntu, `alsa-lib-devel` on Fedora). At runtime the app needs the usual
+desktop libraries (`libasound2`, `libxkbcommon-x11` on X11, a Vulkan or
+OpenGL driver); every desktop installation has them.
 
 ## Usage
 
@@ -90,6 +92,7 @@ edited by hand:
 time_format = "h24"   # or "h12"
 show_seconds = false
 show_date = true
+sound = false         # flap sound when a card flips
 theme = "classic"     # classic, light, amber or midnight
 scale = 0.9           # share of the screen the clock may fill
 # font = "/path/to/font.ttf"
@@ -118,4 +121,6 @@ our [Code of Conduct](CODE_OF_CONDUCT.md).
 ## License
 
 [MIT](LICENSE). The bundled font Inter Display is licensed under the
-[SIL Open Font License 1.1](crates/openflip-render/assets/OFL.txt).
+[SIL Open Font License 1.1](crates/openflip-render/assets/OFL.txt). The
+flap sounds are cut from a CC0 recording by ngruber on Freesound; see
+[their credits](crates/openflip-host/assets/sounds/CREDITS.md).

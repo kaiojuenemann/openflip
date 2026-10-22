@@ -58,6 +58,9 @@ pub struct Frame {
     /// Set when the font changed since the previous frame; hand it to the
     /// renderer before drawing.
     pub new_font: Option<Font>,
+    /// How many flaps struck their card since the previous frame, if the
+    /// settings ask for sound; play that many flap sounds.
+    pub flap_sounds: usize,
 }
 
 pub struct Clock {
@@ -262,6 +265,7 @@ impl Clock {
             .unwrap_or_else(|| chrono::Local::now().naive_local());
         let t = self.started.elapsed().as_secs_f64();
         self.flipper.update(&self.look.cards_at(now), t);
+        let landings = self.flipper.take_landings(t);
         let mut scene = if self.shows_clock_on(primary) {
             self.look.scene(&self.flipper.cards(t), now, size)
         } else {
@@ -292,6 +296,7 @@ impl Clock {
         Frame {
             scene,
             new_font: std::mem::take(&mut self.font_changed).then(|| self.look.font.clone()),
+            flap_sounds: if self.look.config.sound { landings } else { 0 },
         }
     }
 
@@ -387,6 +392,7 @@ fn modified(path: &std::path::Path) -> Option<SystemTime> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use openflip_core::Setting;
     use std::path::Path;
 
     const SIZE: (u32, u32) = (1280, 720);
@@ -444,6 +450,33 @@ mod tests {
         assert!(blank.groups.is_empty());
         assert_eq!(blank.background, clock.look().theme.background);
         assert_eq!((blank.width, blank.height), SIZE);
+    }
+
+    /// Frames of a clock that flips from 10:42 to 10:43, until the flap
+    /// has landed; returns the flap sounds of each frame.
+    fn flap_sounds_of_one_flip(sound: bool) -> Vec<usize> {
+        let mut clock = Clock::new(None).fixed_time(time());
+        clock.apply_config(
+            Config {
+                sound,
+                ..Config::default()
+            },
+            false,
+        );
+        let mut sounds = vec![clock.frame(SIZE).flap_sounds];
+        clock.fixed_time = Some(time() + chrono::Duration::minutes(1));
+        sounds.push(clock.frame(SIZE).flap_sounds);
+        // Let the flip finish without waiting for it.
+        clock.started -= Duration::from_secs(1);
+        sounds.push(clock.frame(SIZE).flap_sounds);
+        sounds.push(clock.frame(SIZE).flap_sounds);
+        sounds
+    }
+
+    #[test]
+    fn a_flip_is_heard_once_when_sound_is_on() {
+        assert_eq!(flap_sounds_of_one_flip(true), [0, 0, 1, 0]);
+        assert_eq!(flap_sounds_of_one_flip(false), [0, 0, 0, 0]);
     }
 
     #[test]
@@ -523,7 +556,11 @@ mod tests {
     fn the_font_row_asks_the_host_for_a_file() {
         let mut clock = Clock::new(None).fixed_time(time());
         clock.key(Key::Settings);
-        for _ in 0..5 {
+        let font = Setting::ALL
+            .iter()
+            .position(|s| *s == Setting::Font)
+            .unwrap();
+        for _ in 0..font {
             clock.key(Key::Down);
         }
         assert_eq!(clock.key(Key::Activate), Response::ChooseFont);

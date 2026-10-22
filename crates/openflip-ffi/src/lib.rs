@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use openflip_core::Config;
-use openflip_host::{Clock, Key, Response};
+use openflip_host::{Clock, FlapSound, Key, Response};
 use openflip_render::SurfaceRenderer;
 
 /// Results of the input functions, telling the host what to do next.
@@ -44,6 +44,7 @@ pub struct OpenFlip {
     size: (u32, u32),
     /// Whether the view is on the primary display; see [`openflip_set_primary`].
     primary: bool,
+    sound: FlapSound,
 }
 
 fn response_code(response: Response) -> u32 {
@@ -138,6 +139,7 @@ unsafe fn new_for_view(
         renderer,
         size,
         primary: true,
+        sound: FlapSound::new(),
     })
 }
 
@@ -238,6 +240,10 @@ pub unsafe extern "C" fn openflip_draw(handle: *mut OpenFlip) -> bool {
             if !shown {
                 h.clock.frame_not_shown();
             }
+            // macOS runs one screensaver view per display; only the one on
+            // the primary display makes a sound.
+            let audible = h.clock.look().config.sound && h.primary;
+            h.sound.update(audible, frame.flap_sounds);
             shown
         })
     }
