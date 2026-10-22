@@ -216,7 +216,8 @@ pub unsafe extern "C" fn openflip_set_primary(handle: *mut OpenFlip, primary: bo
 }
 
 /// Draws a frame if one is due. Call it as often as convenient (e.g. at
-/// 60 Hz); it returns quickly when nothing changed. Returns whether it drew.
+/// 60 Hz); it returns quickly when nothing changed. Returns whether a frame
+/// reached the screen; one that did not is retried on a later call.
 ///
 /// # Safety
 ///
@@ -233,8 +234,11 @@ pub unsafe extern "C" fn openflip_draw(handle: *mut OpenFlip) -> bool {
             if let Some(font) = frame.new_font {
                 h.renderer.set_font(font);
             }
-            h.renderer.render(&frame.scene);
-            true
+            let shown = h.renderer.render(&frame.scene);
+            if !shown {
+                h.clock.frame_not_shown();
+            }
+            shown
         })
     }
 }

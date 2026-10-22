@@ -151,7 +151,9 @@ impl App {
                 view.renderer.set_font(font.clone());
             }
         }
-        self.views[index].renderer.render(&frame.scene);
+        if !self.views[index].renderer.render(&frame.scene) {
+            self.clock.frame_not_shown();
+        }
     }
 
     fn create_windows(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {

@@ -194,20 +194,21 @@ impl SurfaceRenderer {
         self.configure();
     }
 
-    /// Draws one frame. Frames that cannot be presented right now (window
-    /// hidden, surface being resized) are skipped silently.
-    pub fn render(&mut self, scene: &Scene) {
+    /// Draws one frame and returns whether it reached the screen. Frames
+    /// that cannot be presented right now (window hidden, surface being
+    /// resized, a fullscreen transition) are skipped; draw again shortly.
+    pub fn render(&mut self, scene: &Scene) -> bool {
         if !self.configured && !self.configure() {
-            return;
+            return false;
         }
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 self.configure();
-                return;
+                return false;
             }
-            _ => return,
+            _ => return false,
         };
         let view = frame
             .texture
@@ -215,6 +216,7 @@ impl SurfaceRenderer {
         self.painter
             .paint(&self.gpu.device, &self.gpu.queue, &view, scene);
         self.gpu.queue.present(frame);
+        true
     }
 }
 
