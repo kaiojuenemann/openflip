@@ -14,7 +14,7 @@ pub struct Theme {
 
 impl Theme {
     /// Names accepted in `config.toml`, in the order the settings show them.
-    pub const NAMES: [&'static str; 4] = ["classic", "light", "amber", "midnight"];
+    pub const NAMES: [&'static str; 4] = openflip_core::config::THEMES;
 
     pub fn by_name(name: &str) -> Option<Self> {
         let (background, card, digits, secondary) = match name {

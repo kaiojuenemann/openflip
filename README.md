@@ -5,8 +5,10 @@ screensaver and as a standalone fullscreen/windowed app. Inspired by the
 classic flip clock screensavers, built from scratch in Rust and released under
 the MIT license.
 
-> **Status:** early development. The clock runs as an app (no flip
-> animation or screensaver integration yet) — see the [roadmap](docs/ROADMAP.md).
+> **Status:** early development. The clock runs as an app with the 3D flip
+> animation and an in-app settings panel, and as a macOS screensaver
+> ([install guide](platform/macos/README.md)); Windows and Linux
+> screensavers are next — see the [roadmap](docs/ROADMAP.md).
 
 ![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
@@ -24,7 +26,7 @@ the MIT license.
 
 | Platform | Screensaver | App |
 |---|---|---|
-| macOS | `.saver` bundle (Swift wrapper around the Rust core, unsigned for now) | fullscreen / windowed |
+| macOS | `OpenFlip.saver` — [install guide](platform/macos/README.md) | `openflip.app`, fullscreen / windowed |
 | Windows | `.scr` (`/s`, `/p`, `/c`) | fullscreen / windowed |
 | Linux | XScreenSaver hack (X11) | fullscreen / windowed (X11 and Wayland, e.g. launched by an idle daemon) |
 
@@ -48,20 +50,33 @@ installation has them.
 ## Usage
 
 ```
-openflip [--windowed] [--screenshot FILE [--size WxH]] [--time HH:MM[:SS]]
+openflip [--windowed | --settings] [--screenshot FILE [--size WxH] [--progress P]] [--time HH:MM[:SS]]
 ```
 
 | Key | Action |
 |---|---|
+| `S` | open / close the settings |
 | `F` / `F11` | toggle fullscreen |
-| `Esc` / `Q` | quit |
+| `Esc` / `Q` | quit (`Esc` closes the settings first) |
+
+`--settings` opens just the settings in a window and quits when they are
+closed; the screensaver "Options" buttons will use it.
 
 `--screenshot` renders a single frame to a PNG without opening a window;
 `--time` freezes the clock at a given time, which is handy for screenshots.
+Add `--progress 0.4` to capture a flip in mid-air, from the previous minute
+(or second, with seconds shown) to `--time`.
 
 ## Configuration
 
-Settings live in `config.toml` in your user config directory:
+Press `S` to change settings while the clock runs: arrow keys or the mouse
+select and change values, `Enter` on *Font* opens a file picker and `Del`
+returns to the built-in font. Changes apply immediately and are saved.
+
+![The settings panel](docs/images/settings.png)
+
+Settings live in `config.toml` in your user config directory and can also be
+edited by hand:
 
 | OS | Path |
 |---|---|
@@ -85,8 +100,10 @@ language = "german"   # or "english"; omit to follow the system
 ```
 crates/openflip-core   clock logic, configuration, translations (no OS/GPU code)
 crates/openflip-render layout, themes and wgpu renderer (no windowing code)
+crates/openflip-host   clock behaviour shared by all hosts: timing, settings, config
+crates/openflip-ffi    C interface for hosts in other languages
 crates/openflip-app    the openflip binary (winit window, CLI)
-platform/macos         .saver bundle (Swift wrapper)          — planned
+platform/macos         OpenFlip.saver (Swift) and openflip.app bundling
 platform/windows       .scr packaging                          — planned
 platform/linux         XScreenSaver integration                — planned
 ```

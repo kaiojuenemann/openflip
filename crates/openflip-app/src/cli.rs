@@ -9,19 +9,24 @@ Usage: openflip [OPTIONS]
 
 Options:
   --windowed            Start in a window instead of fullscreen
+  --settings            Open the settings in a window; closing them quits
   --screenshot <FILE>   Render one frame to a PNG file and exit
   --size <WxH>          Image size for --screenshot (default 1920x1080)
   --time <TIME>         Show a fixed time, e.g. 10:42 or 2026-10-20T10:42:07
+  --progress <0..1>     For --screenshot: freeze the flip into --time at
+                        this point (0 = start, 0.5 = flap edge-on)
   -h, --help            Print this help
 
-Keys: F or F11 toggles fullscreen, Esc or Q quits.";
+Keys: S opens the settings, F or F11 toggles fullscreen, Esc or Q quits.";
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Options {
     pub windowed: bool,
+    pub settings: bool,
     pub screenshot: Option<PathBuf>,
     pub size: Option<(u32, u32)>,
     pub time: Option<NaiveDateTime>,
+    pub progress: Option<f32>,
     pub help: bool,
 }
 
@@ -32,9 +37,11 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
         let mut value = |name: &str| args.next().ok_or_else(|| format!("{name} needs a value"));
         match arg.as_str() {
             "--windowed" => options.windowed = true,
+            "--settings" => options.settings = true,
             "--screenshot" => options.screenshot = Some(value("--screenshot")?.into()),
             "--size" => options.size = Some(parse_size(&value("--size")?)?),
             "--time" => options.time = Some(parse_time(&value("--time")?)?),
+            "--progress" => options.progress = Some(parse_progress(&value("--progress")?)?),
             "-h" | "--help" => options.help = true,
             other => return Err(format!("unknown option: {other}")),
         }
@@ -51,6 +58,13 @@ fn parse_size(text: &str) -> Result<(u32, u32), String> {
         return Err(invalid());
     }
     Ok((w, h))
+}
+
+fn parse_progress(text: &str) -> Result<f32, String> {
+    text.parse::<f32>()
+        .ok()
+        .filter(|p| (0.0..=1.0).contains(p))
+        .ok_or_else(|| format!("invalid progress '{text}', expected a number from 0 to 1"))
 }
 
 fn parse_time(text: &str) -> Result<NaiveDateTime, String> {
@@ -89,6 +103,8 @@ mod tests {
         assert_eq!(options.screenshot, Some(PathBuf::from("out.png")));
         assert_eq!(options.size, Some((800, 600)));
         assert_eq!(options.time.unwrap().to_string(), "2026-10-20 10:42:07");
+        let options = parse(args(&["--progress", "0.25"])).unwrap();
+        assert_eq!(options.progress, Some(0.25));
     }
 
     #[test]
@@ -105,5 +121,7 @@ mod tests {
         assert!(parse(args(&["--time", "25:00"])).is_err());
         assert!(parse(args(&["--screenshot"])).is_err());
         assert!(parse(args(&["--frobnicate"])).is_err());
+        assert!(parse(args(&["--progress", "1.5"])).is_err());
+        assert!(parse(args(&["--progress", "NaN"])).is_err());
     }
 }

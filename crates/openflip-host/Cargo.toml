@@ -1,0 +1,14 @@
+[package]
+name = "openflip-host"
+description = "Clock behaviour shared by every openflip host: app window and screensavers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+openflip-core.workspace = true
+openflip-render.workspace = true
+chrono.workspace = true
+sys-locale.workspace = true

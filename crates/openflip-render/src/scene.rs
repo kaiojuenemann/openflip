@@ -72,13 +72,60 @@ pub struct Text {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Rect(Rect),
+    Text(Text),
+}
+
+/// Which half of a card a [`Fold`] keeps; the other half is cut away.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Half {
+    Top,
+    Bottom,
+}
+
+/// Cuts a group's content at a horizontal hinge, keeps one half and
+/// optionally rotates it about the hinge in 3D.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fold {
+    /// The hinge line, usually the middle of a card.
+    pub hinge_y: f32,
+    /// Horizontal centre of the card; the perspective converges here.
+    pub center_x: f32,
+    pub half: Half,
+    /// Rotation about the hinge in radians. Positive angles lift the top
+    /// half towards the viewer; negative angles do the same for the bottom
+    /// half. `0` lies flat on the screen.
+    pub angle: f32,
+    /// Distance of the eye from the screen in pixels; smaller values give
+    /// stronger perspective.
+    pub eye_distance: f32,
+    /// Darkening from `0` (none) to `1` (black).
+    pub shade: f32,
+    /// When positive, the darkening fades out linearly over this many
+    /// pixels away from the hinge, like a shadow cast by a flap above it.
+    pub shade_falloff: f32,
+}
+
+/// Items drawn together, optionally cut and rotated by a [`Fold`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Group {
+    pub fold: Option<Fold>,
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
     pub width: u32,
     pub height: u32,
     pub background: Color,
-    /// Drawn in order, before any text.
-    pub rects: Vec<Rect>,
-    pub texts: Vec<Text>,
-    /// Drawn in order, on top of the text (e.g. the split line through the digits).
-    pub overlays: Vec<Rect>,
+    /// Painted in order; later groups cover earlier ones.
+    pub groups: Vec<Group>,
+}
+
+impl Scene {
+    /// All items in paint order, ignoring folds. Handy for tests.
+    pub fn items(&self) -> impl Iterator<Item = &Item> {
+        self.groups.iter().flat_map(|g| &g.items)
+    }
 }

@@ -1,29 +1,36 @@
 //! Interactive mode: a fullscreen or windowed clock driven by winit.
 
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use chrono::{NaiveDateTime, Timelike};
+use openflip_host::{Clock, Key, Response};
 use openflip_render::SurfaceRenderer;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key as WinitKey, NamedKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::cli::Options;
-use crate::Look;
 
-/// Redraw slightly after the second turns over, never just before it.
-const TICK_SLACK: Duration = Duration::from_millis(5);
-
-pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    config_path: Option<PathBuf>,
+    options: &Options,
+) -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoop::new()?;
+    let mut clock = Clock::new(config_path);
+    if options.settings {
+        clock = clock.settings_only();
+    }
+    if let Some(time) = options.time {
+        clock = clock.fixed_time(time);
+    }
     let mut app = App {
         display: event_loop.owned_display_handle(),
-        look,
-        fullscreen: !options.windowed,
-        fixed_time: options.time,
+        clock,
+        // The settings window, opened by the OS screensaver settings, is
+        // never fullscreen.
+        fullscreen: !options.windowed && !options.settings,
         window: None,
         renderer: None,
         error: None,
@@ -37,29 +44,18 @@ pub fn run(look: Look, options: &Options) -> Result<(), Box<dyn std::error::Erro
 
 struct App {
     display: OwnedDisplayHandle,
-    look: Look,
+    clock: Clock,
     fullscreen: bool,
-    fixed_time: Option<NaiveDateTime>,
     window: Option<Arc<Window>>,
     renderer: Option<SurfaceRenderer>,
     error: Option<String>,
 }
 
 impl App {
-    fn now(&self) -> NaiveDateTime {
-        self.fixed_time
-            .unwrap_or_else(|| chrono::Local::now().naive_local())
-    }
-
-    /// Time until the clock face next changes.
-    fn until_next_tick(&self) -> Duration {
-        let now = chrono::Local::now().naive_local();
-        let millis = u64::from(now.nanosecond() / 1_000_000).min(999);
-        let to_next_second = Duration::from_millis(1000 - millis);
-        if self.look.config.show_seconds {
-            to_next_second
-        } else {
-            to_next_second + Duration::from_secs(59 - u64::from(now.second().min(59)))
+    /// The cursor is hidden in fullscreen, except while the settings are open.
+    fn update_cursor(&self) {
+        if let Some(window) = &self.window {
+            window.set_cursor_visible(!self.fullscreen || self.clock.is_settings_open());
         }
     }
 
@@ -67,8 +63,41 @@ impl App {
         self.fullscreen = fullscreen;
         if let Some(window) = &self.window {
             window.set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
-            window.set_cursor_visible(!fullscreen);
         }
+        self.update_cursor();
+    }
+
+    fn respond(&mut self, event_loop: &ActiveEventLoop, response: Response) {
+        match response {
+            Response::Nothing => {}
+            Response::Redraw => {
+                self.update_cursor();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            Response::ChooseFont => {
+                let picked = rfd::FileDialog::new()
+                    .add_filter("Fonts", &["ttf", "otf", "ttc"])
+                    .pick_file();
+                if let Some(path) = picked {
+                    let response = self.clock.set_font(path);
+                    self.respond(event_loop, response);
+                }
+            }
+            Response::Exit => event_loop.exit(),
+        }
+    }
+
+    fn draw(&mut self) {
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        let frame = self.clock.frame(renderer.size());
+        if let Some(font) = frame.new_font {
+            renderer.set_font(font);
+        }
+        renderer.render(&frame.scene);
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
@@ -81,7 +110,6 @@ impl App {
                 .create_window(attributes)
                 .map_err(|e| e.to_string())?,
         );
-        window.set_cursor_visible(!self.fullscreen);
 
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle_from_env(
@@ -95,14 +123,34 @@ impl App {
             &instance,
             surface,
             (size.width, size.height),
-            self.look.font.clone(),
+            self.clock.look().font.clone(),
         ))
         .map_err(|e| e.to_string())?;
 
         self.window = Some(window);
         self.renderer = Some(renderer);
+        self.update_cursor();
         Ok(())
     }
+}
+
+/// Maps a key press to the clock's keys. Arrow keys repeat while held;
+/// everything else reacts to the first press only.
+fn clock_key(key: WinitKey<&str>, repeat: bool) -> Option<Key> {
+    let key = match key {
+        WinitKey::Named(NamedKey::ArrowUp) => Key::Up,
+        WinitKey::Named(NamedKey::ArrowDown) => Key::Down,
+        WinitKey::Named(NamedKey::ArrowLeft) => Key::Left,
+        WinitKey::Named(NamedKey::ArrowRight) => Key::Right,
+        _ if repeat => return None,
+        WinitKey::Named(NamedKey::Enter | NamedKey::Space) => Key::Activate,
+        WinitKey::Named(NamedKey::Delete | NamedKey::Backspace) => Key::Reset,
+        WinitKey::Named(NamedKey::Escape) => Key::Escape,
+        WinitKey::Character(c) if c.eq_ignore_ascii_case("s") => Key::Settings,
+        WinitKey::Character(c) if c.eq_ignore_ascii_case("q") => Key::Quit,
+        _ => return None,
+    };
+    Some(key)
 }
 
 impl ApplicationHandler for App {
@@ -131,45 +179,50 @@ impl ApplicationHandler for App {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize((size.width, size.height));
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.respond(event_loop, Response::Redraw);
             }
-            WindowEvent::RedrawRequested => {
-                let now = self.now();
-                if let Some(renderer) = &mut self.renderer {
-                    let scene = self.look.scene_at(now, renderer.size());
-                    renderer.render(&scene);
-                }
-            }
+            WindowEvent::RedrawRequested => self.draw(),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
                         logical_key,
                         state: ElementState::Pressed,
-                        repeat: false,
+                        repeat,
                         ..
                     },
                 ..
-            } => match logical_key.as_ref() {
-                Key::Named(NamedKey::Escape) => event_loop.exit(),
-                Key::Character(c) if c.eq_ignore_ascii_case("q") => event_loop.exit(),
-                Key::Named(NamedKey::F11) => self.set_fullscreen(!self.fullscreen),
-                Key::Character(c) if c.eq_ignore_ascii_case("f") => {
-                    self.set_fullscreen(!self.fullscreen)
+            } => {
+                // Fullscreen is the window's business, not the clock's.
+                let fullscreen_key = matches!(logical_key.as_ref(), WinitKey::Named(NamedKey::F11))
+                    || matches!(logical_key.as_ref(), WinitKey::Character(c) if c.eq_ignore_ascii_case("f"));
+                if fullscreen_key && !repeat && !self.clock.is_settings_open() {
+                    self.set_fullscreen(!self.fullscreen);
+                } else if let Some(key) = clock_key(logical_key.as_ref(), repeat) {
+                    let response = self.clock.key(key);
+                    self.respond(event_loop, response);
                 }
-                _ => {}
-            },
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let response = self.clock.mouse_moved(position.x as f32, position.y as f32);
+                self.respond(event_loop, response);
+            }
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } => {
+                // The position comes from the last CursorMoved event.
+                let response = self.clock.mouse_pressed_at_cursor();
+                self.respond(event_loop, response);
+            }
             _ => {}
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.fixed_time.is_some() {
-            event_loop.set_control_flow(ControlFlow::Wait);
-        } else {
-            let next = Instant::now() + self.until_next_tick() + TICK_SLACK;
-            event_loop.set_control_flow(ControlFlow::WaitUntil(next));
-        }
+        event_loop.set_control_flow(match self.clock.next_frame_at() {
+            Some(at) => ControlFlow::WaitUntil(at),
+            None => ControlFlow::Wait,
+        });
     }
 }

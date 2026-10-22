@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/openflip-core", "crates/openflip-render", "crates/openflip-app"]
+members = [
+    "crates/openflip-core",
+    "crates/openflip-render",
+    "crates/openflip-host",
+    "crates/openflip-ffi",
+    "crates/openflip-app",
+]
 
 [workspace.package]
 version = "0.0.1"
@@ -12,6 +18,7 @@ repository = "https://github.com/kaiojuenemann/openflip"
 [workspace.dependencies]
 openflip-core = { path = "crates/openflip-core" }
 openflip-render = { path = "crates/openflip-render" }
+openflip-host = { path = "crates/openflip-host" }
 ab_glyph = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 directories = "6"
@@ -19,5 +26,8 @@ png = "0.18"
 pollster = "0.4"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
+raw-window-handle = "0.6"
 wgpu = "30"
 winit = "0.30"
+rfd = "0.17"
+sys-locale = "0.3"

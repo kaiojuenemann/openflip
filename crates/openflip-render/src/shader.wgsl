@@ -1,4 +1,7 @@
-// Draws instanced quads: rounded rectangles (mode 0) and glyphs from the atlas (mode 1).
+// Draws instanced quads: rounded rectangles (mode 0) and glyphs from the atlas
+// (mode 1). Any quad can be folded: cut at a hinge line, keeping one half,
+// and rotated about that hinge with perspective, which is how the flaps of
+// the flip clock move.
 
 struct Globals {
     viewport: vec2<f32>,
@@ -17,6 +20,10 @@ struct Instance {
     @location(2) color: vec4<f32>,
     // corner radius, mode
     @location(3) params: vec2<f32>,
+    // hinge y, centre x, half (-1 top, 1 bottom, 0 none), angle
+    @location(4) fold: vec4<f32>,
+    // eye distance (0 = not rotated), shade, shade falloff, unused
+    @location(5) fold_extra: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -26,7 +33,18 @@ struct VertexOutput {
     @location(2) uv: vec2<f32>,
     @location(3) color: vec4<f32>,
     @location(4) @interpolate(flat) params: vec2<f32>,
+    // distance from the hinge before rotation, perspective-correct
+    @location(5) hinge_offset: f32,
+    // half, shade, shade falloff
+    @location(6) @interpolate(flat) fold: vec3<f32>,
 };
+
+fn to_ndc(pixel: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(
+        pixel.x / globals.viewport.x * 2.0 - 1.0,
+        1.0 - pixel.y / globals.viewport.y * 2.0,
+    );
+}
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32, instance: Instance) -> VertexOutput {
@@ -37,26 +55,53 @@ fn vs_main(@builtin(vertex_index) index: u32, instance: Instance) -> VertexOutpu
     let corner = corners[index];
     let pixel = instance.rect.xy + corner * instance.rect.zw;
 
+    let hinge = instance.fold.x;
+    let dy = pixel.y - hinge;
+    let eye = instance.fold_extra.x;
+
+    var projected = to_ndc(pixel);
+    var w = 1.0;
+    if eye > 0.0 {
+        // Rotate about the hinge (x axis); z points towards the viewer.
+        let angle = instance.fold.w;
+        let rotated = vec2<f32>(pixel.x, hinge + dy * cos(angle));
+        let z = -dy * sin(angle);
+        w = (eye - z) / eye;
+        // Perspective around the card's centre on the hinge: after the
+        // division by w, points move away from it as they come closer.
+        let center = to_ndc(vec2<f32>(instance.fold.y, hinge));
+        projected = center * w + (to_ndc(rotated) - center);
+    }
+
     var out: VertexOutput;
-    out.position = vec4<f32>(
-        pixel.x / globals.viewport.x * 2.0 - 1.0,
-        1.0 - pixel.y / globals.viewport.y * 2.0,
-        0.0,
-        1.0,
-    );
+    out.position = vec4<f32>(projected, 0.0, w);
     out.local = corner * instance.rect.zw;
     out.size = instance.rect.zw;
     out.uv = (instance.uv.xy + corner * instance.uv.zw) / globals.atlas_size;
     out.color = instance.color;
     out.params = instance.params;
+    out.hinge_offset = dy;
+    out.fold = vec3<f32>(instance.fold.z, instance.fold_extra.y, instance.fold_extra.z);
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Keep only the requested half of a folded quad.
+    let half = in.fold.x;
+    if (half < 0.0 && in.hinge_offset > 0.0) || (half > 0.0 && in.hinge_offset < 0.0) {
+        discard;
+    }
+
+    var shade = in.fold.y;
+    if in.fold.z > 0.0 {
+        shade = shade * clamp(1.0 - abs(in.hinge_offset) / in.fold.z, 0.0, 1.0);
+    }
+    let tint = 1.0 - shade;
+
     if in.params.y > 0.5 {
         let coverage = textureSampleLevel(atlas, atlas_sampler, in.uv, 0.0).r;
-        return vec4<f32>(in.color.rgb, in.color.a * coverage);
+        return vec4<f32>(in.color.rgb * tint, in.color.a * coverage);
     }
     // Signed distance to a rounded rectangle, anti-aliased over one pixel.
     let half_size = in.size * 0.5;
@@ -64,5 +109,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let q = abs(in.local - half_size) - half_size + vec2<f32>(radius);
     let distance = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
     let alpha = clamp(0.5 - distance, 0.0, 1.0);
-    return vec4<f32>(in.color.rgb, in.color.a * alpha);
+    return vec4<f32>(in.color.rgb * tint, in.color.a * alpha);
 }

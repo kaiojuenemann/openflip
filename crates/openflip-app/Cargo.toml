@@ -14,8 +14,10 @@ path = "src/main.rs"
 [dependencies]
 openflip-core.workspace = true
 openflip-render.workspace = true
+openflip-host.workspace = true
 chrono.workspace = true
 png.workspace = true
 pollster.workspace = true
+rfd.workspace = true
 wgpu.workspace = true
 winit.workspace = true

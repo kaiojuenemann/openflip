@@ -4,17 +4,48 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use openflip_render::{render_offscreen, Gpu, Painter, OFFSCREEN_FORMAT};
+use chrono::TimeDelta;
+use openflip_render::{render_offscreen, CardFlip, Gpu, Painter, OFFSCREEN_FORMAT};
+
+use openflip_host::menu::SettingsMenu;
+use openflip_host::Look;
 
 use crate::cli::Options;
-use crate::Look;
 
 pub fn run(look: &Look, options: &Options, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let size = options.size.unwrap_or((1920, 1080));
     let time = options
         .time
         .unwrap_or_else(|| chrono::Local::now().naive_local());
-    let scene = look.scene_at(time, size);
+    let cards = match options.progress {
+        // Freeze the flip into `time` from the previous second or minute.
+        Some(progress) => {
+            let step = if look.config.show_seconds {
+                TimeDelta::seconds(1)
+            } else {
+                TimeDelta::minutes(1)
+            };
+            look.cards_at(time - step)
+                .into_iter()
+                .zip(look.cards_at(time))
+                .map(|(from, to)| CardFlip {
+                    progress: if from == to { 1.0 } else { progress },
+                    from,
+                    to,
+                })
+                .collect()
+        }
+        None => look
+            .cards_at(time)
+            .into_iter()
+            .map(CardFlip::at_rest)
+            .collect::<Vec<_>>(),
+    };
+    let mut scene = look.scene(&cards, time, size);
+    if options.settings {
+        let overlay = look.overlay(&SettingsMenu::default(), None, size);
+        scene.groups.extend(overlay.groups);
+    }
 
     let instance =
         wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());

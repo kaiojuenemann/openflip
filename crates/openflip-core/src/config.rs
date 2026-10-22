@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::Language;
 
+/// Names of the built-in themes, in the order the settings cycle through them.
+pub const THEMES: [&str; 4] = ["classic", "light", "amber", "midnight"];
+
+/// Smallest and largest [`Config::scale`] the settings offer.
+pub const SCALE_RANGE: (f32, f32) = (0.5, 1.0);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TimeFormat {

@@ -2,8 +2,9 @@
 //!
 //! The renderer is split into three layers so each can be tested on its own:
 //!
-//! - [`layout`] turns a [`ClockFace`](openflip_core::ClockFace) into a [`Scene`]
-//!   of rectangles and text, in pixels, without touching the GPU.
+//! - [`Flipper`] tracks which cards are flipping and how far.
+//! - [`layout`] turns the cards into a [`Scene`] of rectangles and text,
+//!   in pixels, without touching the GPU.
 //! - [`Painter`] draws a [`Scene`] into any `wgpu` texture.
 //! - [`SurfaceRenderer`] and [`render_offscreen`] wire a painter to a window
 //!   surface or to an in-memory image.
@@ -12,16 +13,19 @@
 //! `wgpu::Surface`, which keeps the door open for the macOS and Windows
 //! screensaver hosts.
 
+mod animation;
 mod atlas;
 mod font;
 mod gpu;
 pub mod layout;
+pub mod overlay;
 mod painter;
 mod scene;
 mod theme;
 
+pub use animation::{flip_angle, CardContent, CardFlip, Flipper, FLIP_DURATION};
 pub use font::{Font, FontError};
 pub use gpu::{render_offscreen, Gpu, RenderError, SurfaceRenderer, OFFSCREEN_FORMAT};
 pub use painter::Painter;
-pub use scene::{Color, HAlign, Rect, Scene, Text};
+pub use scene::{Color, Fold, Group, HAlign, Half, Item, Rect, Scene, Text};
 pub use theme::Theme;
