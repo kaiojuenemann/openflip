@@ -31,6 +31,9 @@ impl fmt::Display for RenderError {
 
 impl std::error::Error for RenderError {}
 
+/// An open graphics device. Cloning is cheap and shares the device, so
+/// several windows can draw with one.
+#[derive(Clone)]
 pub struct Gpu {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
@@ -96,6 +99,17 @@ impl SurfaceRenderer {
         font: Font,
     ) -> Result<Self, RenderError> {
         let gpu = Gpu::new(instance, Some(&surface)).await?;
+        Self::with_gpu(gpu, surface, (width, height), font)
+    }
+
+    /// Like [`SurfaceRenderer::new`], but draws with a device that is
+    /// already open, e.g. one shared with the window on another display.
+    pub fn with_gpu(
+        gpu: Gpu,
+        surface: wgpu::Surface<'static>,
+        (width, height): (u32, u32),
+        font: Font,
+    ) -> Result<Self, RenderError> {
         let caps = surface.get_capabilities(&gpu.adapter);
         // Prefer a non-sRGB format: colours are authored in sRGB and the
         // glyph coverage then blends the way text usually looks on screen.
@@ -155,6 +169,11 @@ impl SurfaceRenderer {
 
     pub fn set_font(&mut self, font: Font) {
         self.painter.set_font(font);
+    }
+
+    /// The device this renderer draws with.
+    pub fn gpu(&self) -> &Gpu {
+        &self.gpu
     }
 
     /// Name of the graphics adapter, for diagnostics.

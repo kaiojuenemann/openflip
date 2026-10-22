@@ -8,6 +8,8 @@ mod cli;
 mod screensaver;
 mod screenshot;
 mod window;
+#[cfg(all(unix, not(target_os = "macos")))]
+mod x11;
 
 use std::process::ExitCode;
 

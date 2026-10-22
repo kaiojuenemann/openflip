@@ -5,7 +5,7 @@ import ScreenSaver
 /// preview in System Settings.
 @objc(OpenFlipView)
 final class OpenFlipView: ScreenSaverView {
-    private lazy var host = ClockHost(view: self, settingsOnly: false)
+    private lazy var host = ClockHost(view: self, settingsOnly: false, followsDisplay: !isPreview)
     /// Set when macOS dismissed the screensaver but kept this view alive.
     private var dismissed = false
     private var willStopObserver: NSObjectProtocol?

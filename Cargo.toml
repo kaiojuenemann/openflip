@@ -32,6 +32,6 @@ raw-window-handle = "0.6"
 wgpu = "30"
 windows-sys = "0.61"
 winit = "0.30"
-x11rb = "0.13"
+x11rb = { version = "0.13", features = ["randr"] }
 rfd = "0.17"
 sys-locale = "0.3"

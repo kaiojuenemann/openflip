@@ -48,6 +48,10 @@ screensaver's look with **Options…** in System Settings, the app's with
 Fonts chosen in the screensaver's options are copied next to its settings,
 so they keep working inside the sandbox.
 
+macOS runs the screensaver on every display. With **Displays: Primary**,
+only the main display (the one with the menu bar) shows the clock; the
+others stay dark. The preview in System Settings always shows it.
+
 ## Build
 
 Requires the Xcode command line tools and Rust.

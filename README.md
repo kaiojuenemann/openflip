@@ -9,8 +9,8 @@ the MIT license.
 > animation and an in-app settings panel, and as a screensaver on macOS,
 > Windows and Linux (install guides:
 > [macOS](platform/macos/README.md), [Windows](platform/windows/README.md),
-> [Linux](platform/linux/README.md)); multi-monitor support is next — see the
-> [roadmap](docs/ROADMAP.md).
+> [Linux](platform/linux/README.md)), on every display or only the primary
+> one. Next up is the v0.1 release — see the [roadmap](docs/ROADMAP.md).
 
 ![openflip showing 10:42 in the classic theme](docs/images/classic.png)
 
