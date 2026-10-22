@@ -25,6 +25,9 @@ wgpu.workspace = true
 winit.workspace = true
 raw-window-handle.workspace = true
 
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+x11rb.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",

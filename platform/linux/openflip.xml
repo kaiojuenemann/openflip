@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<screensaver name="openflip" _label="openflip">
+  <command arg="--root"/>
+  <_description>
+A flip clock with a 3D flip animation.
+
+Time format, seconds, date, theme, size, font and language are set
+in openflip itself: run "openflip --settings".
+
+https://github.com/kaiojuenemann/openflip
+  </_description>
+</screensaver>
