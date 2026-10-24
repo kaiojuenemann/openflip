@@ -1,0 +1,19 @@
+# Weekly pull requests for outdated dependencies, one per ecosystem.
+# Security fixes come as soon as an advisory is published once "Dependabot
+# security updates" is enabled in the repository settings.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

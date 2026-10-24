@@ -1,0 +1,32 @@
+name: Security audit
+
+# Checks the dependencies against the RustSec advisory database: whenever
+# they change, and once a week for advisories published since.
+on:
+  push:
+    branches: [main]
+    paths: ['**/Cargo.toml', 'Cargo.lock', '.github/workflows/audit.yml']
+  pull_request:
+    paths: ['**/Cargo.toml', 'Cargo.lock', '.github/workflows/audit.yml']
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      # Fails on known vulnerabilities; unmaintained or yanked crates are
+      # reported as warnings.
+      - name: Audit Cargo.lock
+        run: cargo audit
