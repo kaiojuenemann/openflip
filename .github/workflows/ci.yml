@@ -34,11 +34,12 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Install ALSA headers (sound)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -55,12 +56,13 @@ jobs:
     name: macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           components: clippy
           targets: aarch64-apple-darwin, x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
       - name: Test
@@ -76,7 +78,7 @@ jobs:
           cp platform/macos/README.md target/macos/INSTALL.md
           cd target/macos
           zip -qry openflip-macos.zip OpenFlip.saver openflip.app INSTALL.md
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: openflip-macos
           path: |
@@ -87,9 +89,11 @@ jobs:
     name: Windows package
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Build
         run: cargo build --release --locked -p openflip-app
       - name: Assemble
@@ -107,7 +111,7 @@ jobs:
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path target\windows\openflip.scr, target\windows\openflip.exe, target\windows\INSTALL.md -DestinationPath target\windows\openflip-windows.zip
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: openflip-windows
           path: |
@@ -118,9 +122,11 @@ jobs:
     name: Linux package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Install X server, software Vulkan and XScreenSaver
         # libxkbcommon-x11 comes with every desktop, but not with the runner.
         run: |
@@ -136,7 +142,7 @@ jobs:
           cp target/release/openflip platform/linux/openflip.xml target/linux/
           cp platform/linux/README.md target/linux/INSTALL.md
           tar czf target/openflip-linux-x86_64.tar.gz -C target/linux .
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: openflip-linux
           path: target/openflip-linux-x86_64.tar.gz
@@ -145,16 +151,18 @@ jobs:
     name: GPU tests (lavapipe)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Install software Vulkan driver
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libasound2-dev
       - name: Render tests
         run: cargo test -- --ignored
       - name: Render screenshot
         run: cargo run --release -- --screenshot screenshot.png --time 10:42:07
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: screenshot
           path: screenshot.png
@@ -169,10 +177,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build provenance: signs a statement that these files came from this
+      # workflow run (see the attestation step).
+      id-token: write
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Version and tag
         run: |
           version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
@@ -206,12 +218,28 @@ jobs:
             echo "::error::CHANGELOG.md has no section for $VERSION"
             exit 1
           fi
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         if: env.SKIP != '1'
         with:
           pattern: openflip-*
           path: packages
           merge-multiple: true
+      - name: Name the packages and write checksums
+        if: env.SKIP != '1'
+        run: |
+          cd packages
+          mv openflip-macos.zip "openflip-$VERSION-macos.zip"
+          mv openflip-windows.zip "openflip-$VERSION-windows.zip"
+          mv openflip-linux-x86_64.tar.gz "openflip-$VERSION-linux-x86_64.tar.gz"
+          sha256sum openflip-$VERSION-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Attest where the packages were built
+        # GitHub offers attestations for public repositories (private ones
+        # need GitHub Enterprise); until then the checksums must do.
+        if: env.SKIP != '1' && !github.event.repository.private
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: packages/openflip-*
       - name: Draft the release
         if: env.SKIP != '1'
         # A draft, so the release is looked over and published by hand. From
@@ -219,9 +247,6 @@ jobs:
         # creates it on the commit that was built.
         run: |
           cd packages
-          mv openflip-macos.zip "openflip-$VERSION-macos.zip"
-          mv openflip-windows.zip "openflip-$VERSION-windows.zip"
-          mv openflip-linux-x86_64.tar.gz "openflip-$VERSION-linux-x86_64.tar.gz"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             where="--verify-tag"
           else
@@ -231,4 +256,5 @@ jobs:
             --title "openflip $VERSION" --notes-file ../notes.md \
             "openflip-$VERSION-macos.zip" \
             "openflip-$VERSION-windows.zip" \
-            "openflip-$VERSION-linux-x86_64.tar.gz"
+            "openflip-$VERSION-linux-x86_64.tar.gz" \
+            SHA256SUMS
