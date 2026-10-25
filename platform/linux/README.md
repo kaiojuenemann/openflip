@@ -54,21 +54,38 @@ net. Wayland does not tell apps which output is the primary one, so with
 **Displays: Primary** the clock shows on the first output the compositor
 lists.
 
+> **openflip does not lock the screen.** Anyone at the computer can end it
+> with a mouse movement. If the screen should lock, let the idle daemon start
+> a screen locker as well, as below: the clock shows after 5 minutes, the
+> lock screen covers it after 10 and before the system sleeps.
+
 **swayidle** (e.g. in your Sway config):
 
 ```
 exec swayidle -w \
     timeout 300 'openflip --screensaver' \
-    resume 'pkill -x openflip'
+    resume 'pkill -x openflip' \
+    timeout 600 'swaylock -f' \
+    before-sleep 'swaylock -f'
 ```
 
 **hypridle** (`~/.config/hypr/hypridle.conf`):
 
 ```
+general {
+    lock_cmd = pidof hyprlock || hyprlock
+    before_sleep_cmd = loginctl lock-session
+}
+
 listener {
     timeout = 300
     on-timeout = openflip --screensaver
     on-resume = pkill -x openflip
+}
+
+listener {
+    timeout = 600
+    on-timeout = loginctl lock-session
 }
 ```
 
