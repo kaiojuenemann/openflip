@@ -9,7 +9,8 @@ repository.workspace = true
 
 [dependencies]
 openflip-core.workspace = true
-ab_glyph.workspace = true
+ab_glyph_rasterizer.workspace = true
+skrifa.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
 
