@@ -6,6 +6,16 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Fonts are now read with skrifa (fontations) instead of ab_glyph, whose
+  parser ttf-parser is no longer maintained (RUSTSEC-2026-0192). Digits look
+  the same. Kerning between characters is no longer applied; the bundled font
+  has none, but a custom font that relies on it may set the date line
+  slightly wider.
+- On Wayland, window decorations no longer draw a title, so ttf-parser is no
+  longer pulled in through winit either.
+
 ## [0.1.0] - 2026-10-22
 
 The first release: a flip clock app and screensaver for macOS, Windows and

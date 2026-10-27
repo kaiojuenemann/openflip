@@ -2,9 +2,7 @@
 
 use std::collections::HashMap;
 
-use ab_glyph::{Font as _, GlyphId, PxScale, ScaleFont as _};
-
-use crate::font::Font;
+use crate::font::{Font, GlyphId};
 
 /// Empty border around each glyph so linear filtering never bleeds.
 const PADDING: u32 = 1;
@@ -102,30 +100,14 @@ impl Atlas {
         if let Some(entry) = self.entries.get(&key) {
             return Ok(*entry);
         }
-        let glyph = id.with_scale(PxScale::from(size));
-        let Some(outline) = font
-            .data
-            .as_scaled(PxScale::from(size))
-            .outline_glyph(glyph)
-        else {
+        let Some(raster) = font.rasterize(id, size) else {
             self.entries.insert(key, None);
             return Ok(None);
         };
-        let bounds = outline.px_bounds();
-        let width = bounds.width() as u32;
-        let height = bounds.height() as u32;
-        if width == 0 || height == 0 {
-            self.entries.insert(key, None);
-            return Ok(None);
-        }
+        let (width, height) = (raster.width, raster.height);
         let (x, y) = self.allocate(width + 2 * PADDING, height + 2 * PADDING)?;
 
-        let mut pixels = vec![0u8; (width * height) as usize];
-        outline.draw(|px, py, coverage| {
-            if px < width && py < height {
-                pixels[(py * width + px) as usize] = (coverage.clamp(0.0, 1.0) * 255.0) as u8;
-            }
-        });
+        let pixels: Vec<u8> = raster.coverage.iter().map(|c| (c * 255.0) as u8).collect();
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
@@ -155,8 +137,8 @@ impl Atlas {
             y: y + PADDING,
             width,
             height,
-            offset_x: bounds.min.x,
-            offset_y: bounds.min.y,
+            offset_x: raster.left,
+            offset_y: raster.top,
         };
         self.entries.insert(key, Some(entry));
         Ok(Some(entry))
