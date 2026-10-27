@@ -1,7 +1,5 @@
 //! Draws a [`Scene`] into a texture.
 
-use ab_glyph::{Font as _, PxScale, ScaleFont as _};
-
 use crate::atlas::{Atlas, AtlasFull};
 use crate::font::Font;
 use crate::scene::{Color, Fold, HAlign, Half, Item, Rect, Scene, Text, VAlign};
@@ -280,18 +278,17 @@ impl Painter {
         fold: &[f32; 8],
         data: &mut Vec<f32>,
     ) -> Result<(), AtlasFull> {
-        let font = self.font.data.as_scaled(PxScale::from(text.size));
+        let font = &self.font;
+        let size = text.size;
         let glyphs: Vec<_> = text.content.chars().map(|c| font.glyph_id(c)).collect();
 
         let baseline = match (text.valign, self.font.waist) {
             (VAlign::Waist, Some(waist)) => text.y + waist * text.size,
             _ => {
                 // The middle of the ink of the digit zero.
-                let zero = font.glyph_id('0').with_scale(text.size);
                 let (ink_top, ink_bottom) = font
-                    .outline_glyph(zero)
-                    .map(|o| (o.px_bounds().min.y, o.px_bounds().max.y))
-                    .unwrap_or((-font.ascent(), 0.0));
+                    .ink_top_bottom(font.glyph_id('0'), size)
+                    .unwrap_or((-font.ascent(size), 0.0));
                 text.y - (ink_top + ink_bottom) / 2.0
             }
         }
@@ -302,18 +299,17 @@ impl Painter {
         let width = match text.slot_width {
             Some(slot) => {
                 for (i, id) in glyphs.iter().enumerate() {
-                    pens.push(i as f32 * slot + (slot - font.h_advance(*id)) / 2.0);
+                    pens.push(i as f32 * slot + (slot - font.advance(*id, size)) / 2.0);
                 }
                 slot * glyphs.len() as f32
             }
             None => {
+                // No kerning: it needs a shaper (GPOS), and the bundled font
+                // has no legacy kern table either.
                 let mut pen = 0.0;
-                for (i, id) in glyphs.iter().enumerate() {
-                    if i > 0 {
-                        pen += font.kern(glyphs[i - 1], *id);
-                    }
+                for id in &glyphs {
                     pens.push(pen);
-                    pen += font.h_advance(*id);
+                    pen += font.advance(*id, size);
                 }
                 pen
             }

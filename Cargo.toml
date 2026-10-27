@@ -19,7 +19,7 @@ repository = "https://github.com/kaiojuenemann/openflip"
 openflip-core = { path = "crates/openflip-core" }
 openflip-render = { path = "crates/openflip-render" }
 openflip-host = { path = "crates/openflip-host" }
-ab_glyph = "0.2"
+ab_glyph_rasterizer = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 directories = "6"
 log = "0.4"
@@ -31,8 +31,11 @@ toml = "0.9"
 raw-window-handle = "0.6"
 wgpu = "30"
 windows-sys = "0.61"
-winit = "0.30"
+# Wayland decorations without title text: the titled variant pulls in
+# ab_glyph/ttf-parser, which is unmaintained (RUSTSEC-2026-0192).
+winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 x11rb = { version = "0.13", features = ["randr"] }
 rfd = "0.17"
 sys-locale = "0.3"
+skrifa = "0.49"
 rodio = { version = "0.23", default-features = false, features = ["playback"] }
