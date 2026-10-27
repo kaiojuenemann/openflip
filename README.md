@@ -113,6 +113,8 @@ platform/windows       openflip.scr install guide and smoke test
 platform/linux         XScreenSaver config, install guide and smoke test
 ```
 
+How the crates connect and how a frame is drawn: [architecture](docs/ARCHITECTURE.md).
+
 ## Contributing
 
 Contributions are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) and
