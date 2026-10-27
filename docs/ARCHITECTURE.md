@@ -84,7 +84,7 @@ work.
 | Crate | Boundary | Depends on |
 |---|---|---|
 | `openflip-core` | No windows, GPU or screensaver APIs. Pure data: time, config, translations. | chrono, serde, toml, directories |
-| `openflip-render` | No windowing library. Draws into whatever `wgpu` texture or surface it is handed. | core, wgpu, ab_glyph |
+| `openflip-render` | No windowing library. Draws into whatever `wgpu` texture or surface it is handed. | core, wgpu, skrifa, ab_glyph_rasterizer |
 | `openflip-host` | Everything except the surface and raw input events. Hosts map their keys to `Key` and act on `Response`. | core, render, rodio, sys-locale |
 | `openflip-ffi` | Main thread only. A panic returns "nothing happened" instead of taking the host process down. Header: `platform/macos/include/openflip.h`, kept in sync by hand. | core, host, render |
 | `openflip-app` | Owns windows and the CLI. Picks app, screensaver, embedded preview or screenshot mode from the arguments. | core, render, host, winit, rfd, x11rb (Linux), windows-sys (Windows) |
