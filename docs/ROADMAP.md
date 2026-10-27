@@ -29,7 +29,7 @@ with checksums, weekly dependency audit, pinned CI actions, `SECURITY.md`.
 |---|---|
 | Go public | Make the repository public; enable private vulnerability reporting and Dependabot alerts; protect `main` (PR and green CI required) (#8) |
 | Real-hardware check | Two displays on macOS and Windows (all / primary only), flip sound in the macOS `.saver` sandbox and the Windows `.scr`, no white window after launch on macOS |
-| Maintained font parser | Read fonts with `skrifa` instead of the unmaintained `ttf-parser` (RUSTSEC-2026-0192) (#33) |
+| Maintained font parser | Read fonts with `skrifa` instead of the unmaintained `ttf-parser` (RUSTSEC-2026-0192) (#33, #36) ✅ |
 | Fixes from that check | Whatever the check turns up; all of v0.1.x is released as 0.1.1 |
 
 ## v0.2 — easier to install, more choice
