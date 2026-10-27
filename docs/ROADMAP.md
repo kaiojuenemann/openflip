@@ -17,7 +17,7 @@ an issue number are proposals; they get an issue once they are scheduled.
 | 6 | Linux | App on X11 and Wayland; XScreenSaver hack; idle-daemon guide ✅ |
 | 7 | Multi-monitor | All vs. primary display, consistent on all three platforms ✅ |
 | – | Flip sound | Authentic flap sound, toggleable in the settings (#23) ✅ |
-| 8 | Release v0.1 | Changelog, README animation, release automation ✅; make repository public (#8) |
+| 8 | Release v0.1 | Changelog, README animation, release automation, public repository (#8) ✅ |
 
 Also in v0.1, beyond the original plan: digits aligned to the split line,
 felt texture with a soft frontal light, release drafts from "Run workflow"
@@ -27,7 +27,7 @@ with checksums, weekly dependency audit, pinned CI actions, `SECURITY.md`.
 
 | Item | Scope |
 |---|---|
-| Go public | Make the repository public; enable private vulnerability reporting and Dependabot alerts; protect `main` (PR and green CI required) (#8) |
+| Go public | Repository public; private vulnerability reporting, Dependabot alerts and security updates, secret scanning with push protection, CodeQL for Rust and the workflows; `main` protected (PR and green CI required) (#8) ✅ |
 | Real-hardware check | Two displays on macOS and Windows (all / primary only), flip sound in the macOS `.saver` sandbox and the Windows `.scr`, no white window after launch on macOS |
 | Maintained font parser | Read fonts with `skrifa` instead of the unmaintained `ttf-parser` (RUSTSEC-2026-0192) (#33, #36) ✅ |
 | Fixes from that check | Whatever the check turns up; all of v0.1.x is released as 0.1.1 |
