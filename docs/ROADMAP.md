@@ -29,7 +29,8 @@ with checksums, weekly dependency audit, pinned CI actions, `SECURITY.md`.
 |---|---|
 | Go public | Make the repository public; enable private vulnerability reporting and Dependabot alerts; protect `main` (PR and green CI required) (#8) |
 | Real-hardware check | Two displays on macOS and Windows (all / primary only), flip sound in the macOS `.saver` sandbox and the Windows `.scr`, no white window after launch on macOS |
-| Fixes from that check | Whatever the check turns up, released as 0.1.1 |
+| Maintained font parser | Read fonts with `skrifa` instead of the unmaintained `ttf-parser` (RUSTSEC-2026-0192) (#33) |
+| Fixes from that check | Whatever the check turns up; all of v0.1.x is released as 0.1.1 |
 
 ## v0.2 — easier to install, more choice
 
@@ -40,7 +41,6 @@ with checksums, weekly dependency audit, pinned CI actions, `SECURITY.md`.
 | Code signing | macOS Developer ID signing and notarization, Windows Authenticode, so no Gatekeeper/SmartScreen workarounds are needed. Needs paid certificates: owner decision |
 | More settings | Sound volume; reduced motion (cards change without the fold, also following the system setting); custom card and digit colours |
 | More languages | Move the UI texts into one translation file per language so contributors can add languages without touching code |
-| Font parser | Replace the unmaintained `ttf-parser` (RUSTSEC-2026-0192) once `ab_glyph` or an alternative offers a maintained one |
 
 ## v0.3 — in the browser
 
