@@ -35,7 +35,7 @@ windows-sys = "0.61"
 # ab_glyph/ttf-parser, which is unmaintained (RUSTSEC-2026-0192).
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 x11rb = { version = "0.14", features = ["randr"] }
-rfd = "0.17"
+rfd = "0.18"
 sys-locale = "0.3"
-skrifa = "0.49"
+skrifa = "0.50"
 rodio = { version = "0.23", default-features = false, features = ["playback"] }
